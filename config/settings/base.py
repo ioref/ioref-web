@@ -29,6 +29,7 @@ environ.Env.read_env(BASE_DIR / ".env")
 # Application definition
 
 INSTALLED_APPS = [
+    "accounts",
     "home",
     "search",
     "catalog",
@@ -120,6 +121,79 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+
+# ---------------------------------------------------------------------------
+# Authentication
+#
+# The guides are public and stay public. This section is about *editors*: who
+# may reach /admin, and how they prove it.
+#
+# AUTH_MODE mirrors ioref-inventory's arrangement rather than inventing a second
+# pattern (same env names, same header names, same user model shape), because
+# the two applications sit behind one service provider and a change to CMU's
+# attribute release has to be answerable in both places at once. Nothing below
+# imports a SAML or OIDC library at module scope, so moving from Shibboleth to
+# Entra is a configuration and proxy change.
+#
+#   local: Wagtail's own login form. Development, and small spin-out installs.
+#   shib:  mod_shib terminates SAML upstream and passes attribute headers.
+#   oidc:  Entra or any OIDC provider (requires mozilla-django-oidc).
+# ---------------------------------------------------------------------------
+AUTH_MODE = env("AUTH_MODE", default="local")
+
+# Set at project start deliberately. Django cannot swap this out once there is
+# production data without a painful manual migration, and this repository has
+# not been deployed yet, which is the only reason it is cheap to do now.
+AUTH_USER_MODEL = "accounts.User"
+
+AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
+
+# Where to send someone who needs to sign in. Shibboleth's session initiator by
+# default; an OIDC deployment points this at its own authorize endpoint.
+SSO_LOGIN_URL = env("SSO_LOGIN_URL", default="/Shibboleth.sso/Login")
+SSO_LOGOUT_URL = env("SSO_LOGOUT_URL", default="/Shibboleth.sso/Logout")
+
+if AUTH_MODE == "shib":
+    # Header names differ per site (REMOTE_USER vs eppn vs a custom attribute),
+    # so they are configurable rather than assumed. The defaults are what CMU
+    # releases: eppn as user@andrew.cmu.edu, not a bare Andrew ID.
+    REMOTE_USER_HEADER = env("REMOTE_USER_HEADER", default="HTTP_EPPN")
+    REMOTE_USER_EMAIL_HEADER = env("REMOTE_USER_EMAIL_HEADER", default="HTTP_MAIL")
+    REMOTE_USER_NAME_HEADER = env("REMOTE_USER_NAME_HEADER", default="HTTP_DISPLAYNAME")
+    REMOTE_USER_SUBJECT_HEADER = env(
+        "REMOTE_USER_SUBJECT_HEADER", default="HTTP_PERSISTENT_ID"
+    )
+    MIDDLEWARE.append("accounts.middleware.HeaderAuthenticationMiddleware")
+    AUTHENTICATION_BACKENDS.insert(0, "accounts.backends.TrustedHeaderBackend")
+
+elif AUTH_MODE == "oidc":
+    INSTALLED_APPS.append("mozilla_django_oidc")
+    AUTHENTICATION_BACKENDS.insert(0, "mozilla_django_oidc.auth.OIDCAuthenticationBackend")
+    OIDC_RP_CLIENT_ID = env("OIDC_RP_CLIENT_ID")
+    OIDC_RP_CLIENT_SECRET = env("OIDC_RP_CLIENT_SECRET")
+    OIDC_RP_SIGN_ALGO = env("OIDC_RP_SIGN_ALGO", default="RS256")
+    OIDC_OP_JWKS_ENDPOINT = env("OIDC_OP_JWKS_ENDPOINT")
+    OIDC_OP_AUTHORIZATION_ENDPOINT = env("OIDC_OP_AUTHORIZATION_ENDPOINT")
+    OIDC_OP_TOKEN_ENDPOINT = env("OIDC_OP_TOKEN_ENDPOINT")
+    OIDC_OP_USER_ENDPOINT = env("OIDC_OP_USER_ENDPOINT")
+
+if AUTH_MODE != "local":
+    # The identity provider owns credentials. Leaving these on would offer
+    # editors a change-password form that writes to a password nothing checks,
+    # and a reset email for an account whose password is unusable.
+    WAGTAIL_PASSWORD_MANAGEMENT_ENABLED = False
+    WAGTAIL_PASSWORD_RESET_ENABLED = False
+    WAGTAILUSERS_PASSWORD_ENABLED = False
+
+    # Wagtail reads this in `reject_request` before falling back to
+    # reverse("wagtailadmin_login"). Both land on the override in config/urls.py;
+    # setting it explicitly means a future Wagtail that stops reversing that name
+    # still arrives in the right place.
+    WAGTAILADMIN_LOGIN_URL = "/admin/login/"
+
+LOGIN_URL = "/admin/login/"
+LOGIN_REDIRECT_URL = "/admin/"
 
 
 # Internationalization

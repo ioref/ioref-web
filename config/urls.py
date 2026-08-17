@@ -6,9 +6,24 @@ from wagtail.admin import urls as wagtailadmin_urls
 from wagtail import urls as wagtail_urls
 from wagtail.documents import urls as wagtaildocs_urls
 
+from accounts import views as accounts_views
 from search import views as search_views
 
-urlpatterns = [
+# Under SSO, Wagtail's password form cannot authenticate anybody, because
+# provisioned accounts have unusable passwords, so it is replaced by a handoff
+# to the identity provider. Registered under Wagtail's own URL names and
+# paths, so reverse("wagtailadmin_login") and a typed /admin/login/ both reach
+# the override; these must come before the wagtailadmin include, which
+# resolves first-match-wins.
+#
+# In local mode they are left alone, which is what keeps runserver usable
+# without a Shibboleth service provider in front of it.
+sso_urls = [] if settings.AUTH_MODE == "local" else [
+    path("admin/login/", accounts_views.sso_login, name="wagtailadmin_login"),
+    path("admin/logout/", accounts_views.sso_logout, name="wagtailadmin_logout"),
+]
+
+urlpatterns = sso_urls + [
     path("django-admin/", admin.site.urls),
     path("admin/", include(wagtailadmin_urls)),
     path("documents/", include(wagtaildocs_urls)),

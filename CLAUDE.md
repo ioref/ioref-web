@@ -80,7 +80,70 @@ have been simpler and would break the moment an editor renamed one.
 straight copy of maker-cards' compiled stylesheet; additions go in `site.css`
 so the copy can be resynced without merging.
 
+**Editors sign in with CMU Shibboleth; the guides stay public.** `AUTH_MODE`
+takes `local`, `shib` or `oidc`, mirroring ioref-inventory rather than inventing
+a second pattern (same env names, same header names, same user model shape),
+because both applications sit behind one service provider and a change to CMU's
+attribute release has to be answerable in both places at once. Nothing imports a
+SAML or OIDC library at module scope, so Shibboleth to Entra is a configuration
+and proxy change.
+
+The two applications do *not* share a session or a user table. They share a
+convention about what identifies a person: `username` is the eppn
+(`user@andrew.cmu.edu`), and `subject_id` holds the IdP's permanent identifier
+where one is released, taking precedence when resolving an account so that a
+rename follows the person and a reissued eppn does not inherit the previous
+holder's page history.
+
+**A custom user model was defined before the first deployment.** Django cannot
+swap `AUTH_USER_MODEL` once production data exists without a manual migration.
+`accounts.User` adds only `subject_id` and `idp`.
+
+**Shibboleth asserts identity, never authorisation.** Accounts are provisioned
+on first sight with no groups, which in Wagtail means no
+`wagtailadmin.access_admin` and so no editor at all. Adding someone to Editors
+or Moderators stays a manual act in Wagtail's own user interface, which is the
+point of provisioning: an administrator can only grant rights to an account that
+exists, and this is what makes it exist without anyone typing an eppn by hand.
+`_sync_attributes` refreshes name and email on every login and touches group
+membership never, so signing in cannot revoke what was granted.
+
 ## Implementation constraints
+
+**`AUTH_MODE=shib` trusts its request headers unconditionally.**
+`accounts/backends.py` accepts whatever `REMOTE_USER_HEADER` contains. That is
+safe only because the vhost overwrites those headers on every inbound request;
+see the `RequestHeader unset` block in `deploy/apache/web.conf`. The block must
+name every header the application reads. Adding a `REMOTE_USER_*_HEADER`
+setting without adding it there is a complete authentication bypass. If gunicorn
+is reachable other than through that vhost, the block buys nothing.
+
+**The site root must stay `requireSession 0`.** The guides are public and are
+most of the traffic. `requireSession 1` at `<Location />` puts the entire public
+site behind a CMU login, which also breaks it for anyone outside the university.
+
+**Wagtail's login view is replaced, and the replacement must not redirect an
+authenticated user.** `require_admin_access` sends a signed-in user who lacks
+`access_admin` to the login URL (`reject_request`, `wagtail/admin/auth.py`).
+Under SSO their SAML session is valid, so handing them back to the IdP returns
+them here immediately and loops until the browser gives up. `accounts/views.py`
+renders a 403 explaining that a group is missing. Covered in `accounts/tests.py`.
+
+**Logging out must end the SAML session, not just the Django one.**
+`HeaderAuthenticationMiddleware` rebuilds the session from headers on every
+request, so `auth.logout()` alone is invisible: the user is signed back in on
+their next click. `wagtailadmin_logout` is overridden to redirect to
+`/Shibboleth.sso/Logout`.
+
+**Wagtail's password screens are switched off outside `local` mode.**
+Provisioned accounts have unusable passwords, so a change-password form would
+write to a field nothing checks and a reset email would arrive for an account
+that cannot use it. `WAGTAIL_PASSWORD_MANAGEMENT_ENABLED`,
+`WAGTAIL_PASSWORD_RESET_ENABLED` and `WAGTAILUSERS_PASSWORD_ENABLED`.
+
+**The SSO URL overrides are registered from `AUTH_MODE` at import time.**
+`override_settings(AUTH_MODE=...)` cannot reach them, which is why
+`accounts/tests.py` calls those two views directly rather than over a URL.
 
 **Category slugs are load-bearing.** `main.css` colours boxes with
 `category-<slug>`, so the five slugs must remain `input`, `output`, `power`,
@@ -176,9 +239,24 @@ live autocomplete against Directus. If that is wanted back, the right answer is
 Wagtail's own autocomplete over a proper backend, not a reimplementation of the
 jQuery machinery.
 
-**Authentication.** Guides are public and this site currently has no login
-beyond the Wagtail admin. If staff SSO is wanted here, mirror the `AUTH_MODE`
-arrangement in ioref-inventory rather than inventing a second pattern.
+**Shibboleth under Docker.** `mod_shib` is an Apache module needing `shibd`
+alongside it, and cannot run in the Python image. It wants a second service with
+a persistent volume, because the service provider keypair must survive container
+rebuilds or the metadata registered with the identity provider goes stale. The
+same problem stands open in ioref-inventory; solve it once for both. Until then
+`deploy/apache/web.conf` describes a host-Apache deployment.
+
+**Registering this host with the identity provider.** ioref-inventory's service
+provider is registered; `guides.ioref.org` is a second entityID and needs its
+own registration and its own attribute release (eppn, mail, displayName, and a
+persistent identifier if CMU will release one). Nothing in `AUTH_MODE=shib`
+works until that is done.
+
+**Bootstrapping the first editor.** Provisioned accounts have no groups, so on a
+fresh deployment nobody can reach `/admin` and there is no password login to
+fall back on. Sign in once to provision the account, then
+`manage.py shell` to set `is_superuser`, or run `createsuperuser` with the eppn
+as the username before first sign-in.
 
 **LTI.** Under consideration for the drawio library or part sets, launched from
 Canvas. It lands here, not on inventory. LTI 1.3 is OIDC-based and launches in
