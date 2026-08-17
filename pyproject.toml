@@ -1,0 +1,12 @@
+[project]
+name = "ioref-web"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "django-environ>=0.14.0",
+    "gunicorn>=26.0.0",
+    "httpx>=0.28.1",
+    "wagtail>=6,<8",
+    "wagtail-markdown>=0.14.1",
+    "whitenoise>=6.12.0",
+]

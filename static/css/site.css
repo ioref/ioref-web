@@ -1,0 +1,154 @@
+/* Additions to main.css, which is carried over verbatim from maker-cards.
+ *
+ * Kept in a separate file so main.css stays a clean copy of the original and
+ * can be re-synced from maker-cards without merging.
+ *
+ * Everything here is for the native inventory views, which maker-cards did not
+ * have -- it linked out to a separate application instead.
+ *
+ * Palette matches main.scss: grey1 #f2f2f2, grey2 #c4c4c4, grey3 #4f4f4f,
+ * off-black #1d1d1d, power crimson #DD1B50.
+ */
+
+.inventory_filters {
+  margin: 20px 0;
+  max-width: 640px;
+}
+
+.inventory_count {
+  color: #4f4f4f;
+  margin-bottom: 10px;
+}
+
+.inventory_table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.inventory_table th,
+.inventory_table td {
+  border-bottom: 1px solid #c4c4c4;
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.inventory_table thead th {
+  border-bottom: 2px solid #1d1d1d;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.inventory_table tbody tr:hover {
+  background-color: #f2f2f2;
+}
+
+/* Tabular figures so quantities align down the column and a mis-keyed digit
+ * is visible at a glance. */
+.inventory_table td.num,
+.inventory_table td.part_number {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.inventory_table td.num {
+  text-align: right;
+}
+
+/* Same crimson the inventory admin uses for below-minimum, so the two
+ * interfaces agree on what "low" looks like. */
+.stock_low {
+  color: #a01038;
+  background: rgb(221 27 80 / 0.11);
+  border-radius: 0.25rem;
+  font-weight: 700;
+  padding: 0.125rem 0.5rem;
+  white-space: nowrap;
+}
+
+.inventory_notice {
+  background: #f2f2f2;
+  border-left: 4px solid #DD1B50;
+  margin: 20px 0;
+  padding: 16px 20px;
+}
+
+.inventory_detail {
+  max-width: 640px;
+}
+
+.inventory_detail .attribute {
+  margin-top: 10px;
+}
+
+.inventory_detail .attribute .label {
+  display: inline;
+  font-weight: 700;
+}
+
+.inventory_detail .attribute .value {
+  display: inline;
+}
+
+.inventory_pagination {
+  align-items: center;
+  color: #4f4f4f;
+  display: flex;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+@media (max-width: 768px) {
+  /* The table does not reflow usefully at phone widths; let it scroll rather
+   * than crushing six columns into 360px. */
+  .inventory_table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+/* Code examples on component pages.
+ *
+ * maker-cards loaded highlight.js behind a per-page flag. Not reproduced: it
+ * was three CDN requests to colour a handful of Arduino sketches, and the
+ * listings read fine without it. Monospace, a rule, and room to scroll.
+ */
+.code_block {
+  margin: 0 0 24px;
+}
+
+.code_block pre {
+  background: #f2f2f2;
+  border-left: 3px solid #636466;
+  margin: 0;
+  overflow-x: auto;
+  padding: 16px 20px;
+}
+
+.code_block code {
+  color: #1d1d1d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.55;
+  /* Sketches are formatted by hand; preserve it rather than reflowing. */
+  white-space: pre;
+}
+
+.code_block figcaption {
+  color: #4f4f4f;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+/* Variant note in the stocked-parts table. */
+.variant_note {
+  color: #636466;
+  font-size: 14px;
+}
+
+.stock_unknown {
+  color: #636466;
+  font-style: italic;
+}

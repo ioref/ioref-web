@@ -1,0 +1,178 @@
+"""Read-only client for the ioref-inventory API.
+
+The two applications have separate databases and separate release cycles, so
+this is the only channel between them. Everything here fails soft: inventory
+being down degrades a part page to "availability unavailable" rather than
+returning a 500, because the guide content is the primary thing on the page
+and is perfectly readable without a stock count.
+"""
+
+import logging
+
+import httpx
+from django.conf import settings
+from django.core.cache import cache
+
+log = logging.getLogger(__name__)
+
+CACHE_PREFIX = "inventory"
+
+
+class InventoryUnavailable(Exception):
+    """Raised by the paged endpoints, where an empty page would mislead."""
+
+
+def _client() -> httpx.Client:
+    return httpx.Client(
+        base_url=settings.INVENTORY_API_URL.rstrip("/"),
+        headers={"Authorization": f"Bearer {settings.INVENTORY_API_KEY}"},
+        timeout=settings.INVENTORY_API_TIMEOUT,
+    )
+
+
+def _get(path: str, params: dict | None = None) -> dict:
+    with _client() as client:
+        response = client.get(path, params=params or {})
+        response.raise_for_status()
+        return response.json()
+
+
+def get_stock(part_number: str) -> dict | None:
+    """Current stock for one part, or None if unavailable.
+
+    Cached briefly: a part page is the most-hit page on the site and stock
+    changes at most a few times a day, so this trades a little staleness for
+    not putting inventory in the request path of every pageview.
+    """
+    key = f"{CACHE_PREFIX}:part:{part_number}"
+    cached = cache.get(key)
+    if cached is not None:
+        return cached or None  # Empty dict is a cached miss.
+
+    try:
+        data = _get(f"/api/v1/parts/{part_number}/")
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            # Guide content exists for a part inventory does not stock. Cache
+            # the miss so a typo'd part number is not retried on every request.
+            cache.set(key, {}, settings.INVENTORY_CACHE_SECONDS)
+            return None
+        log.warning("Inventory returned %s for %s", exc.response.status_code, part_number)
+        return None
+    except httpx.HTTPError as exc:
+        log.warning("Inventory unreachable for %s: %s", part_number, exc)
+        return None
+
+    cache.set(key, data, settings.INVENTORY_CACHE_SECONDS)
+    return data
+
+
+def get_stock_many(part_numbers: list[str]) -> dict[str, dict]:
+    """Stock for several parts at once, keyed by part number.
+
+    A component page covers every part stocked under it, and the ceramic
+    capacitors run to 33. Fetching them individually would mean 33 requests to
+    render one page, so this uses the API's `part_number__in` filter.
+
+    Returns {} when inventory is unreachable, and omits parts inventory does not
+    know about -- a component can list a part number that was never stocked.
+    """
+    if not part_numbers:
+        return {}
+
+    found, missing = {}, []
+    for number in part_numbers:
+        cached = cache.get(f"{CACHE_PREFIX}:part:{number}")
+        if cached is None:
+            missing.append(number)
+        elif cached:  # Empty dict is a cached miss.
+            found[number] = cached
+
+    if not missing:
+        return found
+
+    try:
+        data = _get(
+            "/api/v1/parts/",
+            {"part_number__in": ",".join(missing), "limit": len(missing)},
+        )
+    except httpx.HTTPError as exc:
+        # Partial results beat none: whatever was cached still renders.
+        log.warning("Bulk stock lookup failed for %s: %s", missing, exc)
+        return found
+
+    returned = {part["part_number"]: part for part in data.get("results", [])}
+    for number in missing:
+        part = returned.get(number)
+        # Cache misses as {} too, so a component listing a part number that
+        # inventory has never heard of is not re-requested every pageview.
+        cache.set(f"{CACHE_PREFIX}:part:{number}", part or {}, settings.INVENTORY_CACHE_SECONDS)
+        if part:
+            found[number] = part
+
+    return found
+
+
+def list_by_group(group_slug: str) -> list[dict]:
+    """Every part inventory files under a group, newest stock included.
+
+    This is what lets a component page stop hand-listing part numbers: the
+    membership question -- "is this a potentiometer" -- is answered in
+    inventory, where the part is maintained, rather than duplicated here.
+
+    Returns [] when inventory is unreachable. The page still renders its
+    documentation, which is the part that matters.
+    """
+    if not group_slug:
+        return []
+
+    key = f"{CACHE_PREFIX}:group:{group_slug}"
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+
+    try:
+        data = _get("/api/v1/parts/", {"group": group_slug, "limit": 200})
+    except httpx.HTTPError as exc:
+        log.warning("Group lookup failed for %s: %s", group_slug, exc)
+        return []
+
+    results = data.get("results", [])
+    cache.set(key, results, settings.INVENTORY_CACHE_SECONDS)
+    return results
+
+
+def list_parts(
+    *, search: str = "", status: str = "", needs_restock: bool = False,
+    limit: int = 100, offset: int = 0,
+) -> dict:
+    """A page of parts. Raises InventoryUnavailable rather than returning empty.
+
+    The browse view must be able to tell "no parts match your filter" apart
+    from "inventory is down"; returning an empty list for both would quietly
+    show an empty catalogue during an outage.
+    """
+    params = {"limit": limit, "offset": offset}
+    if search:
+        params["search"] = search
+    if status:
+        params["status"] = status
+    if needs_restock:
+        params["needs_restock"] = "1"
+
+    try:
+        return _get("/api/v1/parts/", params)
+    except httpx.HTTPError as exc:
+        log.warning("Inventory list failed: %s", exc)
+        raise InventoryUnavailable from exc
+
+
+def get_part(part_number: str) -> dict | None:
+    try:
+        return _get(f"/api/v1/parts/{part_number}/")
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return None
+        raise InventoryUnavailable from exc
+    except httpx.HTTPError as exc:
+        raise InventoryUnavailable from exc

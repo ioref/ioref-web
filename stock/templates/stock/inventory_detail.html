@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title|default:part_number }}{% endblock %}
+
+{% block content %}
+    {% if unavailable %}
+        {% include "includes/page_title.html" with title="Current Inventory" %}
+        <div class="inventory_notice"><p>The inventory service is not responding right now.</p></div>
+    {% elif not part %}
+        {% include "includes/page_title.html" with title="Not found" %}
+        <div class="inventory_notice"><p>No part numbered <strong>{{ part_number }}</strong> is stocked.</p></div>
+    {% else %}
+        {% include "includes/page_title.html" with title=part.short_name %}
+
+        <div class="inventory_detail">
+            <div class="attribute"><div class="label">Component number:</div><div class="value">{{ part.part_number }}</div></div>
+            {% if part.description %}<div class="attribute"><div class="value">{{ part.description }}</div></div>{% endif %}
+            <div class="attribute"><div class="label">Location:</div><div class="value">{{ part.location|default:"—" }}</div></div>
+            <div class="attribute"><div class="label">Status:</div><div class="value">{{ part.status }}</div></div>
+            <div class="attribute">
+                <div class="label">On the floor:</div>
+                <div class="value">{% if part.on_floor != None %}{{ part.on_floor }} {{ part.unit }}{% else %}not counted{% endif %}</div>
+            </div>
+            <div class="attribute">
+                <div class="label">Backstock:</div>
+                <div class="value">{% if part.in_backstock != None %}{{ part.in_backstock }} {{ part.unit }}{% else %}not counted{% endif %}</div>
+            </div>
+            {% if part.total_on_hand != None %}
+                <div class="attribute"><div class="label">Total on hand:</div><div class="value">{{ part.total_on_hand }} {{ part.unit }}</div></div>
+            {% endif %}
+            {% if part.needs_restock %}
+                <div class="attribute"><div class="value stock_low">Below the minimum of {{ part.min_quantity }}</div></div>
+            {% endif %}
+            {% if part.latest_price %}
+                <div class="attribute"><div class="label">Last known price:</div><div class="value">${{ part.latest_price.price }} per {{ part.unit }}</div></div>
+                <div class="attribute">
+                    <div class="label">Supplier:</div>
+                    <div class="value">
+                        {% if part.latest_price.purchase_link %}
+                            <a href="{{ part.latest_price.purchase_link }}" target="_blank" rel="noopener">{{ part.latest_price.supplier|default:"Purchase link" }}</a>
+                        {% else %}{{ part.latest_price.supplier|default:"—" }}{% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if guide_url %}
+                <div class="attribute"><div class="value"><a href="{{ guide_url }}">Read the maker card &rarr;</a></div></div>
+            {% endif %}
+            <div class="attribute"><div class="value"><a href="{% url 'inventory_index' %}">&larr; All inventory</a></div></div>
+        </div>
+    {% endif %}
+{% endblock %}

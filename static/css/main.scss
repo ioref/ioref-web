@@ -1,0 +1,848 @@
+@use "sass:map";
+
+$MARGIN: 20px;
+
+$LEFT_COLUMN_SIZE_NORMAL: 275px;
+$LEFT_COLUMN_SIZE_SMALL: 175px;
+
+$FOOTER_HEIGHT: 100px;
+
+$LOGO_WIDTH: 192px;
+$LOGO_HEIGHT: 94px;
+
+// BOOTSTRAP OVERRIDES -------------------------------------------------------------------------------------------------
+
+.dropdown-toggle {
+   outline: none; // turns off the focus highlight (I definitely saw it on iOS Safari, but not on desktop Brave...whatever, this makes it go away)
+}
+
+// MIXINS --------------------------------------------------------------------------------------------------------------
+
+// Prevent copy/paste (found at http://wiki.phonegap.com/iPhone:-Prevent-copy-paste and http://stackoverflow.com/questions/7059039/how-to-prevent-accidental-select-drag-highlight-on-webpage-when-drawing-off-html) */
+@mixin noselect {
+   -moz-user-select: none;
+   -webkit-user-select: none;
+   -webkit-text-size-adjust: none;
+   -ms-user-select: none;
+   user-select: none;
+   cursor: default;
+}
+
+.noselect {
+   @include noselect;
+}
+
+@mixin disable_stupid_bootstrap_input_outline {
+   outline: 0 !important;
+   box-shadow: none !important;;
+   border: 1px solid #ced4da !important;;
+}
+
+// FUNCTIONS -----------------------------------------------------------------------------------------------------------
+
+@function color($c) {
+   @return map.get((
+         text: black,
+         grey1: #f2f2f2,
+         grey2: #c4c4c4,
+         grey3: #4f4f4f,
+         off-black: #1d1d1d,
+         off-white: #fdfdfd,
+         category-box-label: white,
+         category-input: #14B04D,
+         category-output: #00A0C4,
+         category-controller: #4C265B,
+         category-connector: #636466,
+         category-power: #DD1B50,
+   ), $c);
+}
+
+@function breakpoint($b) {
+   @return map.get((
+         xs: 0,
+         xssm: 400px,
+         sm: 576px,
+         smmd: 672px,
+         md: 768px,
+         lg: 992px,
+         xl: 1200px,
+         xxl: 1400px
+   ), $b);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+html, body {
+   font-family: 'Nunito Sans', sans-serif;
+   height: 100%;
+   margin: 0;
+   padding: 0;
+}
+
+a {
+   text-decoration: none;
+   color: color(text);
+}
+
+.img_thumbnail {
+   width: 50px;
+}
+
+.img_small {
+   max-width: 200px;
+}
+
+.img_medium {
+   max-width: 400px;
+}
+
+.img_large {
+   max-width: 1024px;
+}
+
+.img_part_tile {
+   width: 200px;
+   height: 150px;
+}
+
+.page_title {
+   font-size: 28px;
+   font-weight: bold;
+   margin-bottom: $MARGIN;
+}
+
+mark {
+   font-weight: bold;
+   padding: 0;
+   background-color: inherit;
+}
+
+#header {
+   $TRANSITION_SPEED: 0.2s;
+
+   position: fixed;
+   top: 0;
+   width: 100%;
+   z-index: 1000;
+
+   display: flex;
+   flex-direction: row;
+   align-items: center;
+   color: color(off-white);
+   background-color: color(off-black);
+
+   #logo_area {
+      padding: $MARGIN;
+      width: $LEFT_COLUMN_SIZE_NORMAL;
+
+      @media (max-width: breakpoint(md)) {
+         & {
+            width: $LEFT_COLUMN_SIZE_SMALL;
+         }
+      }
+
+      #logo {
+         width: $LOGO_WIDTH;
+         height: $LOGO_HEIGHT;
+         transition: $TRANSITION_SPEED;
+
+         @mixin shrink_logo {
+            width: $LOGO_WIDTH * 0.66;
+            height: $LOGO_HEIGHT * 0.66;
+         }
+
+         &.shrink {
+            @include shrink_logo;
+         }
+
+         @media (max-width: breakpoint(md)) {
+            & {
+               @include shrink_logo;
+            }
+         }
+         @media (max-width: breakpoint(sm)) {
+            &, &.shrink {
+               width: $LOGO_WIDTH * 0.50;
+               height: $LOGO_HEIGHT * 0.50;
+            }
+         }
+      }
+   }
+
+   #header_lines {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      justify-content: center;
+
+      // TODO: remove this once we have more than just the Component Finder in the header
+      display: none;
+
+      @media (max-width: breakpoint(md)) {
+         &.is_searching {
+            display: none;
+         }
+      }
+
+      @media (max-width: breakpoint(sm)) {
+         & {
+            display: none;
+         }
+      }
+
+
+      .header_line {
+         display: flex;
+         flex-direction: row;
+      }
+
+      .primary_header {
+         text-transform: uppercase;
+         font-size: 9pt;
+         margin-bottom: 30px;
+
+         &.shrink {
+            margin-bottom: 10px;
+         }
+
+         @media (max-width: breakpoint(md)) {
+            & {
+               margin-bottom: 10px;
+            }
+         }
+      }
+
+      .secondary_header {
+         align-items: center;
+         justify-content: space-between;
+         font-size: 12pt;
+
+         a {
+            color: color(off-white);
+         }
+
+         .secondary_header_items {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+
+            margin-right: $MARGIN;
+
+            &:last-of-type {
+               margin-right: 0;
+            }
+
+            .circuit_trace_right_angle {
+               $CIRCUIT_TRACE_WIDTH: 49px;
+               $CIRCUIT_TRACE_HEIGHT: 34px;
+
+               align-self: flex-start;
+               margin-top: -18px;
+               margin-right: 10px;
+
+               width: $CIRCUIT_TRACE_WIDTH;
+               height: $CIRCUIT_TRACE_HEIGHT;
+
+               @mixin shrink_circuit_trace {
+                  margin-top: -8px;
+                  width: $CIRCUIT_TRACE_WIDTH * 0.5;
+                  height: $CIRCUIT_TRACE_HEIGHT * 0.5;
+               }
+
+               &.shrink {
+                  @include shrink_circuit_trace;
+               }
+
+               @media (max-width: breakpoint(md)) {
+                  & {
+                     @include shrink_circuit_trace;
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   #search_area {
+      $SEARCH_ICON_SIZE: 42px;
+
+      display: flex;
+      flex-grow: 1;
+      justify-content: flex-end;
+
+      #search_box_area {
+         margin-right: $MARGIN;
+         background-color: color(off-black);
+
+         #q {
+            @include disable_stupid_bootstrap_input_outline;
+         }
+      }
+   }
+}
+
+#search_results_content {
+   display: none;
+}
+
+// This trick of having main_wrapper use flexbox, min-height 100%, and setting #body_content to flex:1 is to get the
+// footer to appear at the bottom of the window or of the content, whichever is lower.  Taken from
+// https://stackoverflow.com/a/12253099/703200
+#main_wrapper {
+   display: flex;
+   flex-direction: column;
+   min-height: 100%;
+}
+
+#body_content {
+   flex: 1;
+}
+
+.body_content {
+   position: relative;
+   margin: $MARGIN;
+   padding-top: $LOGO_HEIGHT + 2 * $MARGIN;
+   padding-bottom: $FOOTER_HEIGHT;
+
+   @media (max-width: breakpoint(md)) {
+      & {
+         padding-top: ($LOGO_HEIGHT * 0.66) + 2 * $MARGIN;
+
+      }
+   }
+   @media (max-width: breakpoint(sm)) {
+      & {
+         padding-top: ($LOGO_HEIGHT * 0.5) + 2 * $MARGIN;
+
+      }
+   }
+}
+
+.category_boxes {
+   display: flex;
+   flex-direction: column;
+   justify-content: space-between;
+
+   .category_box_row {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      justify-content: space-between;
+
+      margin-bottom: $MARGIN;
+
+      &:last-of-type {
+         margin-bottom: 0;
+      }
+
+      @media (max-width: breakpoint(sm)) {
+         & {
+            flex-direction: column;
+         }
+      }
+
+      .category {
+         display: flex;
+         color: color(category-box-label);
+         background-color: color(grey2);
+         flex: 1 1 0;
+         align-items: center;
+         justify-content: center;
+         text-decoration: none;
+         height: 300px;
+         font-size: 24px;
+         font-weight: bold;
+
+         margin-right: $MARGIN;
+
+         &:last-of-type {
+            margin-right: 0;
+         }
+
+         @media (max-width: breakpoint(md)) {
+            & {
+               height: 200px;
+            }
+         }
+         @media (max-width: breakpoint(sm)) {
+            & {
+               min-height: 100px;
+               margin-right: 0;
+               margin-bottom: $MARGIN;
+
+               &:last-of-type {
+                  margin-bottom: 0;
+               }
+            }
+         }
+      }
+
+      .category-input {
+         background-color: color(category-input);
+      }
+
+      .category-output {
+         background-color: color(category-output);
+      }
+
+      .category-controller {
+         background-color: color(category-controller);
+      }
+
+      .category-connector {
+         background-color: color(category-connector);
+      }
+
+      .category-power {
+         background-color: color(category-power);
+      }
+   }
+}
+
+.dropdown_item {
+   padding: 5px 10px;
+
+   &:hover {
+      background-color: #eeeeee;
+   }
+
+   &.active {
+      font-weight: bold;
+   }
+}
+
+.content_with_side_menu {
+   display: flex;
+   flex-direction: row;
+
+   @media (max-width: breakpoint(sm)) {
+      & {
+         flex-direction: column;
+      }
+   }
+
+   .side_menu {
+      margin-right: $MARGIN * 2;
+
+      .category_list {
+         margin-top: 5px;
+
+         .category {
+            font-weight: bold;
+            margin-bottom: 15px;
+
+            .subcategory {
+               margin-left: $MARGIN;
+               margin-top: 15px;
+               font-weight: normal;
+            }
+         }
+
+         @media (max-width: breakpoint(sm)) {
+            & {
+               display: none;
+            }
+         }
+      }
+
+      .category_dropdown {
+         display: none;
+
+         .dropdown-toggle {
+            .page_title {
+               display: inline-block;
+            }
+         }
+
+         @media (max-width: breakpoint(sm)) {
+            & {
+               display: block;
+            }
+         }
+      }
+   }
+
+   .content {
+      flex: 1;
+   }
+}
+
+.category_content {
+   .page_title {
+      @media (max-width: breakpoint(sm)) {
+         & {
+            display: none;
+         }
+      }
+   }
+}
+
+.subcategory_content {
+   .page_title {
+      @media (max-width: breakpoint(sm)) {
+         & {
+            font-size: 22px;
+         }
+      }
+   }
+
+   .subcategory_dropdown {
+      display: none;
+
+      .dropdown-toggle {
+         .page_title {
+            display: inline-block;
+         }
+      }
+   }
+
+   @media (max-width: breakpoint(sm)) {
+      .subcategory_title {
+         display: none;
+      }
+      .subcategory_dropdown {
+         display: block;
+      }
+   }
+
+}
+
+.subcategory_jumper {
+   display: flex;
+   flex-direction: row;
+   flex-wrap: wrap;
+   font-size: smaller;
+
+   div {
+      margin-right: 15px;
+
+      &:last-of-type {
+         margin-right: 0;
+      }
+   }
+
+   .title {
+      font-weight: bold;
+   }
+}
+
+.subcategory_tiles {
+   .subcategory {
+
+      .title {
+         font-weight: bold;
+         font-size: larger;
+         margin-top: 15px;
+         margin-bottom: 10px;
+      }
+   }
+}
+
+.part_tiles {
+   display: flex;
+   flex-flow: row wrap;
+
+   .part_tile {
+      background-color: #eeeeee;
+      border-radius: 5px;
+      border: 0.5px solid lightgrey;
+      overflow: hidden;
+      margin-bottom: 20px;
+      margin-right: 20px;
+      cursor: pointer;
+
+      &:last-of-type {
+         margin-right: 0;
+      }
+
+      .part_img_container {
+         min-height: 150px;
+      }
+
+      .part_name {
+         padding: 5px;
+         max-width: 200px;
+      }
+   }
+}
+
+.part_page {
+   $SIDE_AREA_WIDTH: 300px;
+   $SIDE_AREA_WIDTH_MD: 250px;
+
+   display: grid;
+   grid-template-areas: "menu content";
+   grid-template-columns: $SIDE_AREA_WIDTH auto;
+   grid-template-rows: auto;
+
+   .side_menu {
+      grid-area: menu;
+      position: sticky;
+      top: $LOGO_HEIGHT + 2 * $MARGIN;
+      padding-right: $MARGIN;
+      width: $SIDE_AREA_WIDTH;
+      // this can apparently be zero, but it must be defined. Combined with overflow visible,
+      // we get the effect we want, but content is still visible.  CSS is weird.
+      height: 0;
+      overflow-y: visible;
+
+      &.shrink {
+         top: $LOGO_HEIGHT * 0.66 + 3 * $MARGIN;
+      }
+
+      .section_jumper {
+         margin-top: 15px;
+         border-top: 1px solid black;
+
+         .title {
+            margin-top: 15px;
+         }
+
+         .section_link {
+            margin-top: 15px;
+
+            a {
+               font-weight: bold;
+            }
+         }
+      }
+
+      @media (max-width: breakpoint(md)) {
+         & {
+            width: $SIDE_AREA_WIDTH_MD;
+         }
+      }
+   }
+
+   .part_attributes {
+      .part_name {
+         font-size: 24px;
+         font-weight: bold;
+      }
+
+      .attribute {
+         margin-top: 10px;
+
+         div {
+            display: inline;
+         }
+
+         .label {
+            font-weight: bold;
+         }
+
+         .value {
+         }
+      }
+   }
+
+   .content {
+      grid-area: content;
+      width: calc(100vw - 20px - 20px - 300px);
+
+      .part_image {
+         border: 1px solid lightgrey;
+         display: flex;
+         justify-content: center;
+         margin-bottom: 15px;
+      }
+
+      img {
+         max-width: calc(100vw - 20px - 20px - 300px);
+      }
+
+      .section_title {
+         font-size: 22px;
+         font-weight: bold;
+      }
+
+      .section_anchor {
+         display: block;
+         position: relative;
+         top: -120px;
+         visibility: hidden;
+      }
+   }
+
+   @media (max-width: breakpoint(md)) {
+      & {
+         grid-template-columns: $SIDE_AREA_WIDTH_MD auto;
+         font-size: smaller;
+
+         .content {
+            width: calc(100vw - 20px - 20px - 250px);
+         }
+
+         .part_name {
+            font-size: 22px !important;
+         }
+
+         .section_title {
+            font-size: 20px !important;;
+         }
+      }
+   }
+
+   @media (max-width: breakpoint(smmd)) {
+      & {
+         display: flex;
+         flex-direction: column;
+
+         font-size: inherit;
+
+         .side_menu {
+            position: inherit;
+            height: auto;
+            width: auto;
+            padding-right: 0;
+
+            .section_jumper {
+               margin-bottom: 15px;
+               padding-top: 15px;
+               padding-bottom: 15px;
+               border-bottom: 1px solid black;
+
+               display: flex;
+               flex-direction: row;
+               flex-wrap: wrap;
+               font-size: smaller;
+
+               .title {
+                  font-weight: bold;
+                  margin-right: 15px;
+                  margin-top: 0;
+               }
+
+               .section_link {
+                  margin-top: 0;
+                  margin-right: 15px;
+
+                  a {
+                     font-weight: normal;
+                  }
+               }
+            }
+         }
+
+         .content {
+            position: inherit;
+            width: auto;
+
+            img {
+               max-width: 100%;
+            }
+         }
+      }
+   }
+}
+
+.search {
+   .page_title {
+      margin-bottom: 0;
+   }
+
+   .matching_terms {
+      font-size: 18px;
+      margin-bottom: $MARGIN;
+   }
+
+   .search_results {
+      .search_result {
+         display: flex;
+         flex-direction: row;
+         align-items: center;
+         justify-content: flex-start;
+         margin-top: $MARGIN;
+         border-radius: 5px;
+
+         &:hover {
+            background-color: #f2f2f2;
+            cursor: pointer;
+         }
+
+         // don't let the text change to link color on hover, mousedown, etc.
+         &:link, &:hover, &:focus, &:active {
+            color: inherit;
+         }
+
+         .search_result_image {
+            $SEARCH_RESULT_IMAGE_WIDTH: 100px;
+            $SEARCH_RESULT_IMAGE_WIDTH_SMALLER: $SEARCH_RESULT_IMAGE_WIDTH * 0.6;
+
+            margin-right: $MARGIN;
+            border-radius: 5px;
+            border: 0.5px solid lightgrey;
+            overflow: hidden;
+            min-width: $SEARCH_RESULT_IMAGE_WIDTH;
+
+            img {
+               width: $SEARCH_RESULT_IMAGE_WIDTH;
+               height: $SEARCH_RESULT_IMAGE_WIDTH * 3/4;
+            }
+
+            @media (max-width: breakpoint(xssm)) {
+               & {
+                  min-width: $SEARCH_RESULT_IMAGE_WIDTH_SMALLER;
+
+                  img {
+                     width: $SEARCH_RESULT_IMAGE_WIDTH_SMALLER;
+                     height: $SEARCH_RESULT_IMAGE_WIDTH_SMALLER * 3/4;
+                  }
+               }
+            }
+         }
+
+         .search_result_details {
+            display: flex;
+            flex-direction: column;
+
+            .search_result_name {
+               font-size: larger;
+
+               a {
+                  color: color(text);
+               }
+            }
+         }
+      }
+   }
+}
+
+#footer {
+   display: flex;
+   flex-direction: column;
+   justify-content: center;
+   height: auto;
+   background-color: color(grey1);
+   padding: $MARGIN;
+
+   font-size: 10px;
+   color: color(grey3);
+
+   .copyright {
+      margin-bottom: 10px;
+   }
+
+   @media (max-width: breakpoint(md)) {
+      & {
+         padding: $MARGIN/2;
+         align-items: center;
+
+         .made_in {
+            display: none;
+         }
+
+         .copyright {
+            margin-bottom: 0;
+         }
+      }
+   }
+
+   @media (max-width: breakpoint(sm)) {
+      & {
+         .supported_by {
+            display: none;
+         }
+      }
+   }
+}

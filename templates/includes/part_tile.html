@@ -1,0 +1,10 @@
+{% load wagtailcore_tags wagtailimages_tags %}
+{# Ported from maker-cards views/partials/part-tile.hbs. #}
+<a class="part_tile noselect" href="{% pageurl part %}">
+    <div class="part_img_container">
+        {% if part.image %}
+            {% image part.image fill-200x200 class="img_part_tile" alt=part.title %}
+        {% endif %}
+    </div>
+    <div class="part_name">{{ part.title }}</div>
+</a>

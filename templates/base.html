@@ -1,0 +1,52 @@
+{% load static wagtailcore_tags wagtailuserbar %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title>{% block title %}{% if page.seo_title %}{{ page.seo_title }}{% else %}{{ page.title }}{% endif %}{% endblock %}{% block title_suffix %} | {{ settings.SITE_NAME|default:"IOref" }}{% endblock %}</title>
+    {% if page.search_description %}<meta name="description" content="{{ page.search_description }}">{% endif %}
+
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'apple-touch-icon.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'favicon-16x16.png' %}">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,wght@0,200;0,300;0,400;0,600;0,700;0,800;0,900;1,200;1,300;1,400;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+
+    {# Bootstrap 5.1.1 -- pinned to the version main.css was authored against. #}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    {% comment %}
+        Carried over verbatim from maker-cards so the site keeps its appearance.
+        Recompile with: npx sass static/css/main.scss static/css/main.css
+    {% endcomment %}
+    <link href="{% static 'css/main.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% static 'css/site.css' %}" rel="stylesheet" type="text/css">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="shrinkable {% block body_class %}{% endblock %}">
+{% wagtailuserbar %}
+
+{% include "includes/header.html" %}
+
+<div id="main_wrapper">
+    <div id="body_content" class="body_content">
+        {% block content %}{% endblock %}
+    </div>
+
+    {% include "includes/footer.html" %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ" crossorigin="anonymous"></script>
+<script src="{% static 'js/site.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load wagtailcore_tags wagtailimages_tags wagtailmarkdown %}
+{% comment %}
+    Ported from maker-cards views/parts/part.hbs.
+
+    The legacy version read stock straight out of Directus alongside the guide
+    content, because both lived in one table. They are separate applications
+    now, so `stock` comes from the inventory API and may be absent.
+{% endcomment %}
+
+{% block content %}
+<div class="part_page">
+    <div class="side_menu part_attributes shrinkable">
+        <div class="part_name">{{ page.title }}</div>
+
+        {% if page.category %}
+            <div class="attribute">
+                <div class="label">Category:</div>
+                <div class="value"><a href="{% pageurl page.category %}">{{ page.category.title }}</a></div>
+            </div>
+        {% endif %}
+        {% if page.subcategory %}
+            <div class="attribute">
+                <div class="label">Subcategory:</div>
+                <div class="value"><a href="{% pageurl page.subcategory %}">{{ page.subcategory.title }}</a></div>
+            </div>
+        {% endif %}
+        {% if page.signal_type %}
+            <div class="attribute">
+                <div class="label">Signal Type:</div>
+                <div class="value">{{ page.signal_type }}</div>
+            </div>
+        {% endif %}
+
+
+        {% for set in page.part_sets.all %}
+            <div class="attribute">
+                <div class="label">Part Set:</div>
+                <div class="value"><a href="{% pageurl set %}">{{ set.title }}</a></div>
+            </div>
+        {% endfor %}
+
+        {% if page.description %}<div class="attribute">{{ page.description|richtext }}</div>{% endif %}
+
+        {% if variants|length == 1 %}
+            {% with v=variants.0 %}
+                <div class="attribute">
+                    <div class="label">IDeATe Component Number:</div>
+                    <div class="value">{{ v.number }}</div>
+                </div>
+                {% include "includes/variant_stock.html" with stock=v.stock %}
+            {% endwith %}
+        {% endif %}
+
+        {% if page.sections %}
+            <div class="section_jumper">
+                <div class="title">Jump to section:</div>
+                {% for section in page.sections %}
+                    <div class="section_link"><a href="#{{ section.anchor }}">{{ section.label }}</a></div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="content">
+        {% if page.image %}
+            <div class="part_image">{% image page.image width-600 alt=page.title %}</div>
+        {% endif %}
+
+        {% for section in page.sections %}
+            <a id="{{ section.anchor }}" class="section_anchor"></a>
+            <div class="section_title">{{ section.label }}</div>
+            {% comment %}
+                Markdown, rendered the same way maker-cards rendered it. Fenced
+                code blocks and inline <figure> diagrams both come through; see
+                WAGTAILMARKDOWN in settings for the sanitiser allowances.
+            {% endcomment %}
+            <div class="section_body">{{ section.body|markdown }}</div>
+        {% endfor %}
+
+        {% if variants|length > 1 %}
+            <a id="stocked" class="section_anchor"></a>
+            <div class="section_title">What we stock</div>
+            <table class="inventory_table">
+                <thead>
+                    <tr>
+                        <th scope="col">Part</th>
+                        <th scope="col"></th>
+                        <th scope="col">Location</th>
+                        <th scope="col">On floor</th>
+                        <th scope="col">Backstock</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in variants %}
+                        <tr>
+                            <td class="part_number">
+                                <a href="{% url 'inventory_detail' v.number %}">{{ v.number }}</a>
+                            </td>
+                            <td>{{ v.label }}{% if v.note %} <span class="variant_note">{{ v.note }}</span>{% endif %}</td>
+                            {% if v.stock %}
+                                <td>{{ v.stock.location|default:"—" }}</td>
+                                <td class="num">
+                                    {% if v.stock.needs_restock %}<span class="stock_low">{{ v.stock.on_floor|default_if_none:"—" }}</span>
+                                    {% else %}{{ v.stock.on_floor|default_if_none:"—" }}{% endif %}
+                                </td>
+                                <td class="num">{{ v.stock.in_backstock|default_if_none:"—" }}</td>
+                            {% else %}
+                                {% comment %}
+                                    Either inventory is unreachable or it has never
+                                    heard of this part number. Neither is worth an
+                                    error on a page that is mostly documentation.
+                                {% endcomment %}
+                                <td colspan="3" class="stock_unknown">stock unavailable</td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+        {% if related_parts %}
+            <div class="section_title">Related parts</div>
+            <div class="part_tiles">
+                {% for part in related_parts %}
+                    {% include "includes/part_tile.html" %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

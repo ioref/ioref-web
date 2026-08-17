@@ -1,0 +1,36 @@
+{% comment %}
+    Sidebar stock block for a component with a single stocked part. Omitted
+    entirely when inventory is unreachable -- the guide content is the point of
+    the page and reads fine without a count.
+{% endcomment %}
+{% if stock %}
+    <div class="attribute">
+        <div class="label">IDeATe Location:</div>
+        <div class="value">{{ stock.location|default:"—" }}</div>
+    </div>
+    <div class="attribute">
+        <div class="label">On the floor:</div>
+        <div class="value">{% if stock.on_floor != None %}{{ stock.on_floor }} {{ stock.unit }}{% else %}not counted{% endif %}</div>
+    </div>
+    <div class="attribute">
+        <div class="label">Backstock:</div>
+        <div class="value">{% if stock.in_backstock != None %}{{ stock.in_backstock }} {{ stock.unit }}{% else %}not counted{% endif %}</div>
+    </div>
+    {% if stock.latest_price %}
+        <div class="attribute">
+            <div class="label">Supplier:</div>
+            <div class="value">
+                {% if stock.latest_price.purchase_link %}
+                    <a href="{{ stock.latest_price.purchase_link }}" target="_blank" rel="noopener">{{ stock.latest_price.supplier|default:"Purchase link" }}</a>
+                {% else %}{{ stock.latest_price.supplier|default:"—" }}{% endif %}
+            </div>
+        </div>
+        <div class="attribute">
+            <div class="label">Last known price:</div>
+            <div class="value">${{ stock.latest_price.price }} per {{ stock.unit }}</div>
+        </div>
+    {% endif %}
+    <div class="attribute">
+        <div class="value"><a href="{% url 'inventory_detail' stock.part_number %}">Full stock history &rarr;</a></div>
+    </div>
+{% endif %}

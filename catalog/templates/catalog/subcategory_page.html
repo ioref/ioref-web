@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load wagtailcore_tags %}
+{# Ported from maker-cards views/categories/subcategory.hbs. #}
+
+{% block content %}
+<div class="content_with_side_menu">
+    {% include "includes/side_category_menu.html" %}
+
+    <div class="content subcategory_content">
+        <div class="subcategory_title">{% include "includes/page_title.html" with title=page.title %}</div>
+        <hr/>
+        <div class="subcategory_tiles">
+            <div class="subcategory">
+                <div class="part_tiles">
+                    {% for part in parts %}
+                        {% include "includes/part_tile.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

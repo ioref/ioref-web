@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load wagtailcore_tags %}
+{# Ported from maker-cards views/categories/category.hbs. #}
+
+{% block content %}
+<div class="content_with_side_menu">
+    {% include "includes/side_category_menu.html" %}
+
+    <div class="content category_content">
+        {% include "includes/page_title.html" with title=page.title %}
+
+        {% if page.intro %}<div class="intro">{{ page.intro|richtext }}</div>{% endif %}
+
+        {% if subcategories %}
+            <div class="subcategory_jumper">
+                <div class="title">Jump to subcategory:</div>
+                {% for sub in subcategories %}
+                    <div class="subcategory"><a href="#{{ sub.slug }}">{{ sub.title }}</a></div>
+                {% endfor %}
+            </div>
+            <hr/>
+        {% endif %}
+
+        <div class="subcategory_tiles">
+            {% if loose_parts %}
+                {% comment %}
+                    Parts hung straight off the category. Rendered unlabelled
+                    above the subcategories, as the legacy site did.
+                {% endcomment %}
+                <div class="subcategory">
+                    <div class="part_tiles">
+                        {% for part in loose_parts %}
+                            {% include "includes/part_tile.html" %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            {% for sub in subcategories %}
+                <div class="subcategory">
+                    <div id="{{ sub.slug }}" class="title"><a href="{% pageurl sub %}">{{ sub.title }}</a></div>
+                    <div class="part_tiles">
+                        {% for part in sub.visible_parts %}
+                            {% include "includes/part_tile.html" %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
