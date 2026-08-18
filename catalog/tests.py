@@ -2,7 +2,7 @@
 
 SimpleTestCase throughout, because there is no database. The parsing tests
 build a content directory in a temporary folder so they can assert on exact
-inputs; the view tests run against the real content/, because 130 real files
+inputs; the view tests run against the real content/, because the real files
 are the thing most likely to contain a case nobody thought to write a fixture
 for.
 """
@@ -172,7 +172,7 @@ class ParsingTests(SimpleTestCase):
 
 
 class RealContentTests(SimpleTestCase):
-    """Against the actual 130 files, not a fixture."""
+    """Against the real content/, not a fixture."""
 
     @classmethod
     def setUpClass(cls):
@@ -180,7 +180,9 @@ class RealContentTests(SimpleTestCase):
         cls.catalogue = content.reload()
 
     def test_every_part_loads(self):
-        self.assertEqual(len(self.catalogue.parts), 130)
+        self.assertEqual(
+            len(self.catalogue.parts), len(list((Path(settings.CONTENT_DIR) / "parts").glob("*.md")))
+        )
 
     def test_every_part_has_a_category(self):
         self.assertEqual([p.slug for p in self.catalogue.parts if p.category is None], [])
@@ -190,6 +192,21 @@ class RealContentTests(SimpleTestCase):
         # a bad edit fails here rather than at the first pageview.
         labels = {s.label for p in self.catalogue.parts for s in p.sections}
         self.assertTrue(labels <= set(content.LABEL_TO_ANCHOR))
+
+    def test_no_slug_carries_a_part_number_prefix(self):
+        """A component page documents a kind of thing, not one stocked item.
+
+        The Directus slugs led with the part number, so /input/movement/
+        0390-potentiometer/ was the URL of the general potentiometer
+        explanation. Values belong to the parts in inventory, not to the
+        document. The three families that only differed by value were merged;
+        a new file must not reintroduce the pattern.
+        """
+        offenders = [
+            p.slug for p in self.catalogue.parts
+            if re.match(r"^\d{4}-", p.slug)
+        ]
+        self.assertEqual(offenders, [])
 
     def test_part_numbers_are_unique_across_the_catalogue(self):
         seen = [n for p in self.catalogue.parts for n in p.part_numbers]
