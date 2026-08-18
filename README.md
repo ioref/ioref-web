@@ -145,8 +145,8 @@ npx sass static/css/main.scss static/css/main.css
 ```
 
 The header search is a plain GET, matched as a substring across titles and
-prose with title hits ranked first. 130 parts fit in memory, so there is no
-index. The original ran a live autocomplete against Directus via jQuery,
+prose with title hits ranked first. The catalogue fits in memory, so there is
+no index. The original ran a live autocomplete against Directus via jQuery,
 bootstrap-autocomplete and a Handlebars template; that machinery went with
 Directus.
 
@@ -155,9 +155,10 @@ Directus.
 Directus → Wagtail → files. The middle step is gone: `content/` is the source
 of truth now and is edited directly.
 
-Of 1,511 source rows in Directus about 130 carried guide content and became
-the files in `content/parts/`; the rest are stock only and belong to
-ioref-inventory. The seven `docs_*` fields were markdown in Directus and are
+Of 1,511 source rows in Directus about 130 carried guide content, and 49 of
+those survive as files in `content/parts/`. The rest were stock rows with no
+prose, or value variants of a component that now has one page; they belong to
+ioref-inventory and are browsable at `/inventory/`. The seven `docs_*` fields were markdown in Directus and are
 markdown here, byte for byte.
 
 The Wagtail-era importer and the exporter that produced `content/` are in git

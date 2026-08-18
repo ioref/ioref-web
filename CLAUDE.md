@@ -3,7 +3,7 @@
 Django with no CMS and no database. The public ioref.org site, replacing
 maker-cards. Initial implementation August 2026.
 
-The guides are 130 markdown files in `content/`, read once at startup. Editing
+The guides are 49 markdown files in `content/`, read once at startup. Editing
 the site means editing a file and committing it. Stock arrives over
 ioref-inventory's API. There is nothing else.
 
@@ -58,8 +58,10 @@ schema had no such distinction, so `data.csv` repeats the same capacitor
 explanation across 33 rows, the same bulb explanation across 12, and editing one
 meant editing all of them.
 
-Currently **1:1** — one file, one part number — with merging done as staff next
-edit a card. Nobody had to reclassify 1,628 parts up front.
+The import defaulted to 1:1, one file per part number, which produced 31
+resistor pages that differed only by value. Those are merged: `resistor`,
+`potentiometer` and `electrolytic-capacitor` each cover a whole family now.
+Further merging is done as staff next edit a card.
 
 **`part_number` is the join key.** It lives in the `parts:` list in frontmatter.
 The two applications have separate stores, so it is not a foreign key;
@@ -97,7 +99,7 @@ the view that read it. Not rewriting the markdown was the point of storing it.
 `public/` is served at the root of the URL space by `WHITENOISE_ROOT`, and is
 deliberately **not** in `STATICFILES_DIRS`. Under `STATIC_URL` these would be
 `/static/images/parts/<file>`, which is not what the prose asks for, and
-`collectstatic` would copy 84 MB into `staticfiles/` as a second set whose
+`collectstatic` would copy 58 MB into `staticfiles/` as a second set whose
 names the manifest storage then hashes. Files existing on disk is not the same
 as files answering on a URL; `catalog/tests.py` checks the paths and the smoke
 test in the Commands section checks the URLs.
@@ -113,8 +115,10 @@ it went when the CMS did; recover it from git history if a web editor ever comes
 back. ioref-inventory still uses that arrangement for staff count entry, and is
 unaffected.
 
-**Media is committed to the repository.** 185 files, 84 MB in `public/`,
-unoptimised straight out of Directus. Deliberate, on the grounds that the
+**Media is committed to the repository.** 110 files, 58 MB in `public/`,
+unoptimised straight out of Directus. Only files the prose actually references
+are kept; the export copied Wagtail's whole alias table, 75 files of which
+nothing pointed at. Deliberate, on the grounds that the
 alternative is running something to serve them. Note that git keeps every
 future revision forever, so replacing an image is not free.
 
@@ -128,6 +132,13 @@ Django render a traceback page, which reprs the view's local variables, which
 exhausted memory and got the process OOM-killed with no traceback to say why.
 Hence `@dataclass(eq=False)` and `repr=False` on every back-reference in
 `catalog/content.py`, and a test that asserts `repr()` terminates.
+
+**`inventory_group` means "this page documents the whole group".** It does not
+mean "this part happens to be in that group", which is what the Directus import
+wrote and what made three switch pages each render a byte-identical table of
+every switch in the lab. A page with its own `parts:` entry must not carry a
+group; only `resistor` and `potentiometer` do, and neither has an inline part
+of its own. Getting this wrong is invisible in tests and obvious on the page.
 
 **URL ordering in `catalog/urls.py` is load-bearing.** Category slugs sit at the
 root of the path, because that is where the legacy site had them and where the
@@ -255,8 +266,8 @@ parts as though they were subcategories. `side_category_menu.html` now iterates
 site and this one, and whether it was a bug or a feature is a judgement call
 that has not been made. Restoring the old behaviour is a one-line change.
 
-**Search has no autocomplete.** `Catalogue.search` is a substring scan over 130
-parts, ranking title matches first. It returns a superset of what Wagtail's
+**Search has no autocomplete.** `Catalogue.search` is a substring scan over the
+catalogue, ranking title matches first. It returns a superset of what Wagtail's
 database backend did. The legacy site had live autocomplete against Directus; if
 that is wanted, it is a JSON index and a little JavaScript, not a search
 backend.

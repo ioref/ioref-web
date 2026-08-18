@@ -1,12 +1,13 @@
 """The guide content, read from markdown files rather than a database.
 
-The whole catalogue is 130 files and about 100 KB of prose, so it is parsed
+The whole catalogue is a few dozen files and about 100 KB of prose, so it is
+parsed
 once and held in memory. There is no database behind any of this: editing the
 site means editing a file and committing it.
 
-Rendering happens at load time, not per request. Markdown for 130 pages costs
-a few hundred milliseconds once at startup, and paying it per pageview for
-content that only changes on deploy would be waste.
+Rendering happens at load time, not per request. Markdown for the whole
+catalogue costs a fifth of a second once at startup, and paying it per pageview
+for content that only changes on deploy would be waste.
 
 The sanitiser allowances are the ones that were in WAGTAILMARKDOWN before, and
 they are not decorative: 59 diagrams in the prose are inline <figure> HTML and
@@ -231,8 +232,8 @@ class Catalogue:
     def search(self, query):
         """Substring match over title and prose.
 
-        130 pages fits in memory many times over, so this is a loop rather than
-        an index. Wagtail's database backend was not doing anything cleverer.
+        The catalogue fits in memory many times over, so this is a loop rather
+        than an index. Wagtail's database backend was not doing anything cleverer.
         """
         needle = (query or "").strip().lower()
         if not needle:
