@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load wagtailcore_tags %}
 
 {% block body_class %}template-homepage{% endblock %}
 
@@ -23,12 +22,12 @@
     <div class="category_boxes">
         <div class="category_box_row">
             {% for category in categories_top %}
-                <a class="category category-{{ category.slug }}" href="{% pageurl category %}">{{ category.title }}</a>
+                <a class="category category-{{ category.slug }}" href="{{ category.url }}">{{ category.title }}</a>
             {% endfor %}
         </div>
         <div class="category_box_row">
             {% for category in categories_bottom %}
-                <a class="category category-{{ category.slug }}" href="{% pageurl category %}">{{ category.title }}</a>
+                <a class="category category-{{ category.slug }}" href="{{ category.url }}">{{ category.title }}</a>
             {% endfor %}
         </div>
     </div>

@@ -1,39 +1,38 @@
-# Django project
-/media/
-/static/
-*.sqlite3
+# The Dockerfile does `COPY . .`, so anything not excluded here is baked into
+# the published image.
+#
+# Two entries from the Wagtail scaffold had to go, because what they excluded
+# is now the site itself:
+#
+#   /static/  the scaffold excluded built assets; static/ is a source
+#             directory here and holds the stylesheet the site is built on.
+#   parts/    had no leading slash, so it matched content/parts/ and
+#             public/images/parts/ alike: all 130 markdown files and all 185
+#             media files.
+#
+# Both were harmless while a database held the content. Neither is now.
 
-# Python and others
-__pycache__
-*.pyc
+# Built on the host, for the host. The image runs its own `uv sync`.
+.venv/
+
+.env
+.git/
+.github/
+.gitignore
+__pycache__/
+*.py[cod]
+
+# Written by collectstatic during the build.
+staticfiles/
+
+# Nothing should produce one of these any more; the project has no database.
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
 .DS_Store
 *.swp
-/venv/
-/tmp/
-/.vagrant/
-/Vagrantfile.local
+.vscode/
+.idea/
 node_modules/
-/npm-debug.log
-/.idea/
-.vscode
 coverage
-.python-version
-
-# Distribution / packaging
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg

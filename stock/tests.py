@@ -1,5 +1,8 @@
 """Tests for the ioref-inventory integration.
 
+SimpleTestCase throughout: there is no database to set up. Stock lives in
+ioref-inventory and the guides are files.
+
 The interesting cases are all failure modes. A guide page must stay readable
 when inventory is down, and the browse view must not render an outage as an
 empty catalogue.
@@ -9,7 +12,7 @@ from unittest.mock import patch
 
 import httpx
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import SimpleTestCase
 
 from stock.client import InventoryUnavailable, get_stock, list_parts
 
@@ -32,7 +35,7 @@ def _response(status, json_body=None):
     return httpx.Response(status, json=json_body or {}, request=request)
 
 
-class GetStockTests(TestCase):
+class GetStockTests(SimpleTestCase):
     def setUp(self):
         cache.clear()
 
@@ -83,7 +86,7 @@ class GetStockTests(TestCase):
         self.assertEqual(mock_get.call_count, 2)
 
 
-class ListPartsTests(TestCase):
+class ListPartsTests(SimpleTestCase):
     @patch("stock.client._get")
     def test_returns_page(self, mock_get):
         mock_get.return_value = {"count": 1, "results": [PART]}
@@ -98,7 +101,7 @@ class ListPartsTests(TestCase):
             list_parts()
 
 
-class InventoryViewTests(TestCase):
+class InventoryViewTests(SimpleTestCase):
     @patch("stock.views.list_parts")
     def test_index_renders_parts(self, mock_list):
         mock_list.return_value = {"count": 1, "results": [dict(PART)]}

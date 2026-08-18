@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load wagtailcore_tags %}
 {# Ported from maker-cards views/categories/category.hbs. #}
 
 {% block content %}
@@ -8,8 +7,6 @@
 
     <div class="content category_content">
         {% include "includes/page_title.html" with title=page.title %}
-
-        {% if page.intro %}<div class="intro">{{ page.intro|richtext }}</div>{% endif %}
 
         {% if subcategories %}
             <div class="subcategory_jumper">
@@ -38,7 +35,7 @@
 
             {% for sub in subcategories %}
                 <div class="subcategory">
-                    <div id="{{ sub.slug }}" class="title"><a href="{% pageurl sub %}">{{ sub.title }}</a></div>
+                    <div id="{{ sub.slug }}" class="title"><a href="{{ sub.url }}">{{ sub.title }}</a></div>
                     <div class="part_tiles">
                         {% for part in sub.visible_parts %}
                             {% include "includes/part_tile.html" %}

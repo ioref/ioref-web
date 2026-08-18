@@ -29,44 +29,19 @@ environ.Env.read_env(BASE_DIR / ".env")
 # Application definition
 
 INSTALLED_APPS = [
-    "accounts",
-    "home",
-    "search",
     "catalog",
     "stock",
-    "wagtailmarkdown",
-    "wagtail.contrib.forms",
-    "wagtail.contrib.redirects",
-    "wagtail.embeds",
-    "wagtail.sites",
-    "wagtail.users",
-    "wagtail.snippets",
-    "wagtail.documents",
-    "wagtail.images",
-    "wagtail.search",
-    "wagtail.admin",
-    "wagtail",
-    "modelcluster",
-    "taggit",
-    "django_filters",
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
     "django.contrib.staticfiles",
 ]
 
+# No sessions, auth, messages or admin. Nothing here has a user: the guides are
+# public, the inventory views are read-only, and the content is edited by
+# committing a file. See "No database" below.
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "wagtail.contrib.redirects.middleware.RedirectMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -83,8 +58,6 @@ TEMPLATES = [
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
@@ -93,107 +66,41 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
-# Database
-# https://docs.djangoproject.com/en/6.1/ref/settings/#databases
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
-
-
-# Password validation
-# https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
-    },
-]
+# ---------------------------------------------------------------------------
+# Content
+#
+# The guides are 130 markdown files with YAML frontmatter, read once at
+# startup. Editing the site means editing a file and committing it.
+# ---------------------------------------------------------------------------
+CONTENT_DIR = env("CONTENT_DIR", default=BASE_DIR / "content")
 
 
 # ---------------------------------------------------------------------------
-# Authentication
+# No database
 #
-# The guides are public and stay public. This section is about *editors*: who
-# may reach /admin, and how they prove it.
-#
-# AUTH_MODE mirrors ioref-inventory's arrangement rather than inventing a second
-# pattern (same env names, same header names, same user model shape), because
-# the two applications sit behind one service provider and a change to CMU's
-# attribute release has to be answerable in both places at once. Nothing below
-# imports a SAML or OIDC library at module scope, so moving from Shibboleth to
-# Entra is a configuration and proxy change.
-#
-#   local: Wagtail's own login form. Development, and small spin-out installs.
-#   shib:  mod_shib terminates SAML upstream and passes attribute headers.
-#   oidc:  Entra or any OIDC provider (requires mozilla-django-oidc).
+# There is nothing to store. Guide content is files, stock lives in
+# ioref-inventory and arrives over its API, and there are no user accounts
+# because there is nothing to log in to. An empty DATABASES is a supported
+# configuration, and it is what stops a schema quietly reappearing: anything
+# that wants a model has to justify reintroducing a database first.
 # ---------------------------------------------------------------------------
-AUTH_MODE = env("AUTH_MODE", default="local")
+DATABASES = {}
 
-# Set at project start deliberately. Django cannot swap this out once there is
-# production data without a painful manual migration, and this repository has
-# not been deployed yet, which is the only reason it is cheap to do now.
-AUTH_USER_MODEL = "accounts.User"
 
-AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
-
-# Where to send someone who needs to sign in. Shibboleth's session initiator by
-# default; an OIDC deployment points this at its own authorize endpoint.
-SSO_LOGIN_URL = env("SSO_LOGIN_URL", default="/Shibboleth.sso/Login")
-SSO_LOGOUT_URL = env("SSO_LOGOUT_URL", default="/Shibboleth.sso/Logout")
-
-if AUTH_MODE == "shib":
-    # Header names differ per site (REMOTE_USER vs eppn vs a custom attribute),
-    # so they are configurable rather than assumed. The defaults are what CMU
-    # releases: eppn as user@andrew.cmu.edu, not a bare Andrew ID.
-    REMOTE_USER_HEADER = env("REMOTE_USER_HEADER", default="HTTP_EPPN")
-    REMOTE_USER_EMAIL_HEADER = env("REMOTE_USER_EMAIL_HEADER", default="HTTP_MAIL")
-    REMOTE_USER_NAME_HEADER = env("REMOTE_USER_NAME_HEADER", default="HTTP_DISPLAYNAME")
-    REMOTE_USER_SUBJECT_HEADER = env(
-        "REMOTE_USER_SUBJECT_HEADER", default="HTTP_PERSISTENT_ID"
-    )
-    MIDDLEWARE.append("accounts.middleware.HeaderAuthenticationMiddleware")
-    AUTHENTICATION_BACKENDS.insert(0, "accounts.backends.TrustedHeaderBackend")
-
-elif AUTH_MODE == "oidc":
-    INSTALLED_APPS.append("mozilla_django_oidc")
-    AUTHENTICATION_BACKENDS.insert(0, "mozilla_django_oidc.auth.OIDCAuthenticationBackend")
-    OIDC_RP_CLIENT_ID = env("OIDC_RP_CLIENT_ID")
-    OIDC_RP_CLIENT_SECRET = env("OIDC_RP_CLIENT_SECRET")
-    OIDC_RP_SIGN_ALGO = env("OIDC_RP_SIGN_ALGO", default="RS256")
-    OIDC_OP_JWKS_ENDPOINT = env("OIDC_OP_JWKS_ENDPOINT")
-    OIDC_OP_AUTHORIZATION_ENDPOINT = env("OIDC_OP_AUTHORIZATION_ENDPOINT")
-    OIDC_OP_TOKEN_ENDPOINT = env("OIDC_OP_TOKEN_ENDPOINT")
-    OIDC_OP_USER_ENDPOINT = env("OIDC_OP_USER_ENDPOINT")
-
-if AUTH_MODE != "local":
-    # The identity provider owns credentials. Leaving these on would offer
-    # editors a change-password form that writes to a password nothing checks,
-    # and a reset email for an account whose password is unusable.
-    WAGTAIL_PASSWORD_MANAGEMENT_ENABLED = False
-    WAGTAIL_PASSWORD_RESET_ENABLED = False
-    WAGTAILUSERS_PASSWORD_ENABLED = False
-
-    # Wagtail reads this in `reject_request` before falling back to
-    # reverse("wagtailadmin_login"). Both land on the override in config/urls.py;
-    # setting it explicitly means a future Wagtail that stops reversing that name
-    # still arrives in the right place.
-    WAGTAILADMIN_LOGIN_URL = "/admin/login/"
-
-LOGIN_URL = "/admin/login/"
-LOGIN_REDIRECT_URL = "/admin/"
+# ---------------------------------------------------------------------------
+# ioref-inventory
+#
+# The only channel to the inventory application, and now the only thing this
+# site talks to at all. Read-scoped key: nothing here can write stock.
+# Generate it in the inventory admin under "API keys" and put it in the
+# environment, never in code.
+# ---------------------------------------------------------------------------
+INVENTORY_API_URL = env("INVENTORY_API_URL", default="http://127.0.0.1:8765")
+INVENTORY_API_KEY = env("INVENTORY_API_KEY", default="")
+INVENTORY_API_TIMEOUT = env.float("INVENTORY_API_TIMEOUT", default=3.0)
+# Stock changes a few times a day at most; part pages are the busiest on the
+# site. Short cache keeps inventory out of the hot path without going stale.
+INVENTORY_CACHE_SECONDS = env.int("INVENTORY_CACHE_SECONDS", default=120)
 
 
 # Internationalization
@@ -226,8 +133,16 @@ STATICFILES_DIRS = [
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATIC_URL = "/static/"
 
-MEDIA_ROOT = BASE_DIR / "media"
-MEDIA_URL = "/media/"
+# Served at the root of the URL space rather than under STATIC_URL, because the
+# guide prose references its diagrams as /images/parts/<file> and rewriting
+# 61 paths across the content is exactly what storing markdown was meant to
+# avoid. WhiteNoise serves this directory in development and production alike.
+#
+# Deliberately outside STATICFILES_DIRS: collectstatic would otherwise copy all
+# 84 MB into staticfiles/ as a second set, and the manifest storage would then
+# hash the names, which is precisely what the prose cannot follow.
+WHITENOISE_ROOT = BASE_DIR / "public"
+WHITENOISE_INDEX_FILE = False
 
 # Default storage settings
 # See https://docs.djangoproject.com/en/6.1/ref/settings/#std-setting-STORAGES
@@ -240,83 +155,4 @@ STORAGES = {
     },
 }
 
-# Django sets a maximum of 1000 fields per form by default, but particularly complex page models
-# can exceed this limit within Wagtail's page editor.
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 10_000
 
-
-# Wagtail settings
-
-WAGTAIL_SITE_NAME = "config"
-
-# Search
-# https://docs.wagtail.org/en/stable/topics/search/backends.html
-WAGTAILSEARCH_BACKENDS = {
-    "default": {
-        "BACKEND": "wagtail.search.backends.database",
-    }
-}
-
-# Base URL to use when referring to full URLs within the Wagtail admin backend -
-# e.g. in notification emails. Don't include '/admin' or a trailing slash
-WAGTAILADMIN_BASE_URL = "http://example.com"
-
-# Allowed file extensions for documents in the document library.
-# This can be omitted to allow all files, but note that this may present a security risk
-# if untrusted users are allowed to upload files -
-# see https://docs.wagtail.org/en/stable/advanced_topics/deploying.html#user-uploaded-files
-WAGTAILDOCS_EXTENSIONS = ['csv', 'docx', 'key', 'odt', 'pdf', 'pptx', 'rtf', 'txt', 'xlsx', 'zip']
-
-# Maximum upload size for documents in bytes.
-WAGTAILDOCS_MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
-
-
-# ---------------------------------------------------------------------------
-# ioref-inventory
-#
-# The only channel to the inventory application. Read-scoped key: nothing on
-# this site can write stock. Generate the key in the inventory admin under
-# "API keys" and put it in the environment -- never in code.
-# ---------------------------------------------------------------------------
-INVENTORY_API_URL = env("INVENTORY_API_URL", default="http://127.0.0.1:8765")
-INVENTORY_API_KEY = env("INVENTORY_API_KEY", default="")
-INVENTORY_API_TIMEOUT = env.float("INVENTORY_API_TIMEOUT", default=3.0)
-# Stock changes a few times a day at most; part pages are the busiest on the
-# site. Short cache keeps inventory out of the hot path without going stale.
-INVENTORY_CACHE_SECONDS = env.int("INVENTORY_CACHE_SECONDS", default=120)
-
-
-# The legacy cards embed diagrams as SVG -- part 0390's schematic, for one.
-# Wagtail rejects SVG uploads unless it is listed here.
-WAGTAILIMAGES_EXTENSIONS = ["gif", "jpg", "jpeg", "png", "webp", "svg"]
-
-
-# ---------------------------------------------------------------------------
-# Markdown
-#
-# The guide content is markdown, not HTML: maker-cards ran every docs_* field
-# through marked() (routes/parts.js:91), and 22 of them carry fenced code
-# blocks with language hints. Storing it as Wagtail rich text would strip those
-# the first time an editor saved a page.
-#
-# wagtail-markdown sanitises the rendered HTML with nh3. The defaults drop the
-# <figure>/<figcaption> wrappers the content uses for its 59 diagrams, and the
-# fenced-code markup, so they are allowed back explicitly.
-# ---------------------------------------------------------------------------
-WAGTAILMARKDOWN = {
-    "allowed_settings_mode": "extend",
-    "allowed_tags": ["figure", "figcaption", "img", "video", "source", "pre", "code"],
-    "allowed_attributes": {
-        "figure": ["class", "style"],
-        "figcaption": ["class", "style"],
-        "img": ["src", "alt", "title", "width", "height", "class", "style"],
-        "video": ["src", "controls", "width", "height", "class"],
-        "source": ["src", "type"],
-        "code": ["class"],
-        "pre": ["class"],
-        "a": ["href", "title", "rel", "target"],
-    },
-    "allowed_styles": ["text-align"],
-    "extensions": ["fenced_code", "codehilite", "tables", "nl2br"],
-    "extension_configs": {"codehilite": {"use_pygments": False}},
-}

@@ -1,9 +1,14 @@
-{% load wagtailcore_tags wagtailimages_tags %}
 {# Ported from maker-cards views/partials/part-tile.hbs. #}
-<a class="part_tile noselect" href="{% pageurl part %}">
+<a class="part_tile noselect" href="{{ part.url }}">
     <div class="part_img_container">
         {% if part.image %}
-            {% image part.image fill-200x200 class="img_part_tile" alt=part.title %}
+            {% comment %}
+                Full-size, sized down by .img_part_tile in main.css. Wagtail
+                generated a 200x200 rendition here; without it the browser
+                downloads the original. See the note in CLAUDE.md.
+            {% endcomment %}
+            <img class="img_part_tile" src="{{ part.image_url }}" alt="{{ part.title }}">
+
         {% endif %}
     </div>
     <div class="part_name">{{ part.title }}</div>

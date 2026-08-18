@@ -1,11 +1,20 @@
-"""Component pages: the generic explanation, and the parts stocked under it."""
+"""The file-backed catalogue: parsing, rendering, and the URLs it serves.
 
-from unittest.mock import patch
+SimpleTestCase throughout, because there is no database. The parsing tests
+build a content directory in a temporary folder so they can assert on exact
+inputs; the view tests run against the real content/, because 130 real files
+are the thing most likely to contain a case nobody thought to write a fixture
+for.
+"""
 
-from django.test import RequestFactory, TestCase
+import re
+import tempfile
+from pathlib import Path
 
-from catalog.models import CategoryPage, ComponentPage, StockedPart, SubcategoryPage
-from home.models import HomePage
+from django.conf import settings
+from django.test import SimpleTestCase, override_settings
+
+from catalog import content
 
 FENCED = """Wire it up, then:
 
@@ -16,215 +25,251 @@ void setup() {
 ```
 """
 
+FIGURE = (
+    '<figure class="image" style="text-align:center">'
+    '<img src="/images/parts/pot.gif" alt="A potentiometer">'
+    "<figcaption><em>Image from Sparkfun</em></figcaption></figure>"
+)
 
-class SectionTests(TestCase):
-    def test_empty_sections_are_omitted(self):
-        """Live card 0390 has no 'About' section; the jump menu must skip it."""
-        page = ComponentPage(
-            title="Potentiometer",
-            slug="pot",
-            docs_what_it_is="<p>A variable resistor.</p>",
-            docs_how_it_works="<p>A wiper slides along a track.</p>",
-        )
-        self.assertEqual(
-            [s["label"] for s in page.sections], ["What it is", "How it works"]
-        )
 
-    def test_fenced_code_is_kept_verbatim_in_the_section(self):
-        """Code needs no special field: it is fenced markdown in the body.
+def write_content(root, parts, categories=None, part_sets=None):
+    root = Path(root)
+    (root / "parts").mkdir(parents=True, exist_ok=True)
+    (root / "categories.yml").write_text(
+        categories
+        or "categories:\n- slug: input\n  title: Input\n  subcategories:\n"
+           "  - slug: light\n    title: Light\n",
+        encoding="utf-8",
+    )
+    (root / "part-sets.yml").write_text(
+        part_sets or "part_sets:\n- slug: starter\n  title: Starter\n", encoding="utf-8"
+    )
+    for name, text in parts.items():
+        (root / "parts" / f"{name}.md").write_text(text, encoding="utf-8")
+    return root
 
-        22 parts in the production data carry fenced blocks with language
-        hints. Wagtail rich text would have stripped them on first save.
+
+class ParsingTests(SimpleTestCase):
+    def load(self, parts, **kwargs):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = write_content(self.tmp.name, parts, **kwargs)
+        with override_settings(CONTENT_DIR=root):
+            return content.load()
+
+    def test_sections_come_back_in_display_order_not_file_order(self):
+        """The jump menu is built from this order, so it cannot follow the file.
+
+        An author who appends a section to the end of a file should not thereby
+        move it to the end of the page.
         """
-        page = ComponentPage(title="P", slug="p", docs_getting_started=FENCED)
-        self.assertEqual(page.sections[0]["body"], FENCED)
-        self.assertIn("```cpp", page.sections[0]["body"])
+        cat = self.load({
+            "p": "---\ntitle: P\ncategory: input\n---\n\n"
+                 "## Resources\n\nLinks.\n\n## About\n\nA thing.\n"
+        })
+        self.assertEqual([s.label for s in cat.by_slug["p"].sections], ["About", "Resources"])
 
-    def test_whitespace_only_sections_are_omitted(self):
-        page = ComponentPage(title="P", slug="p", docs_about="   \n  ")
-        self.assertEqual(page.sections, [])
+    def test_empty_sections_are_omitted(self):
+        """Live card 0390 has no About section; the jump menu must skip it."""
+        cat = self.load({
+            "p": "---\ntitle: P\ncategory: input\n---\n\n"
+                 "## About\n\n## What it is\n\nA variable resistor.\n"
+        })
+        self.assertEqual([s.label for s in cat.by_slug["p"].sections], ["What it is"])
+
+    def test_fenced_code_survives_rendering(self):
+        """22 parts carry fenced blocks with language hints.
+
+        This is why the content is markdown and why the sanitiser has to allow
+        <pre> and <code>: rich text would have eaten them on first save.
+        """
+        cat = self.load({
+            "p": f"---\ntitle: P\ncategory: input\n---\n\n## Getting started\n\n{FENCED}"
+        })
+        html = str(cat.by_slug["p"].sections[0].body_html)
+        self.assertIn("<code", html)
+        self.assertIn("Serial.begin(9600)", html)
+
+    def test_figure_markup_survives_rendering(self):
+        """59 diagrams are inline <figure> HTML. Narrowing the allowed tags
+        deletes them silently, and only on the pages that use them."""
+        cat = self.load({
+            "p": f"---\ntitle: P\ncategory: input\n---\n\n## How it works\n\n{FIGURE}\n"
+        })
+        html = str(cat.by_slug["p"].sections[0].body_html)
+        self.assertIn("<figure", html)
+        self.assertIn("<figcaption", html)
+        self.assertIn("/images/parts/pot.gif", html)
+
+    def test_script_tags_are_stripped(self):
+        cat = self.load({
+            "p": "---\ntitle: P\ncategory: input\n---\n\n"
+                 "## About\n\n<script>alert(1)</script>Safe.\n"
+        })
+        self.assertNotIn("<script", str(cat.by_slug["p"].sections[0].body_html))
+
+    def test_part_numbers_stay_strings(self):
+        """0386 is an identifier, not the integer 386."""
+        cat = self.load({
+            "p": "---\ntitle: P\ncategory: input\nparts:\n- number: '0386'\n---\n\n"
+                 "## About\n\nx\n"
+        })
+        self.assertEqual(cat.by_slug["p"].part_numbers, ["0386"])
+
+    def test_url_reflects_whether_a_subcategory_is_set(self):
+        cat = self.load({
+            "loose": "---\ntitle: L\ncategory: input\n---\n\n## About\n\nx\n",
+            "nested": "---\ntitle: N\ncategory: input\nsubcategory: light\n---\n\n## About\n\nx\n",
+        })
+        self.assertEqual(cat.by_slug["loose"].url, "/input/loose/")
+        self.assertEqual(cat.by_slug["nested"].url, "/input/light/nested/")
+
+    def test_unknown_section_heading_is_an_error_not_a_silent_drop(self):
+        """A typo in a heading would otherwise delete the section from the page
+        with nothing to show for it."""
+        with self.assertRaises(ValueError) as caught:
+            self.load({
+                "p": "---\ntitle: P\ncategory: input\n---\n\n## Waht it is\n\nx\n"
+            })
+        self.assertIn("Waht it is", str(caught.exception))
+
+    def test_unknown_category_is_an_error(self):
+        with self.assertRaises(ValueError):
+            self.load({"p": "---\ntitle: P\ncategory: nonsense\n---\n\n## About\n\nx\n"})
+
+    def test_subcategory_must_belong_to_the_category(self):
+        with self.assertRaises(ValueError):
+            self.load({
+                "p": "---\ntitle: P\ncategory: input\nsubcategory: nope\n---\n\n## About\n\nx\n"
+            })
+
+    def test_dangling_related_slug_is_dropped_not_fatal(self):
+        """A rename elsewhere should not 500 an unrelated page."""
+        cat = self.load({
+            "p": "---\ntitle: P\ncategory: input\nrelated:\n- gone\n---\n\n## About\n\nx\n"
+        })
+        self.assertEqual(cat.by_slug["p"].related_parts, [])
+
+    def test_deeper_headings_do_not_split_the_file(self):
+        """### inside a section belongs to the author, not to the parser."""
+        cat = self.load({
+            "p": "---\ntitle: P\ncategory: input\n---\n\n"
+                 "## About\n\nIntro.\n\n### A detail\n\nMore.\n"
+        })
+        sections = cat.by_slug["p"].sections
+        self.assertEqual(len(sections), 1)
+        self.assertIn("A detail", sections[0].body)
+
+    def test_repr_terminates(self):
+        """Part and Category reference each other. A generated repr that walks
+        both directions runs until the process is killed, which is how this was
+        found: an unrelated error page tried to repr a view's locals."""
+        cat = self.load({
+            "p": "---\ntitle: P\ncategory: input\n---\n\n## About\n\nx\n"
+        })
+        self.assertIn("slug='p'", repr(cat.by_slug["p"]))
+        self.assertIn("slug='input'", repr(cat.categories[0]))
 
 
-class StockedPartTests(TestCase):
+class RealContentTests(SimpleTestCase):
+    """Against the actual 130 files, not a fixture."""
+
     @classmethod
-    def setUpTestData(cls):
-        home = HomePage.objects.get()
-        category = CategoryPage(title="Input", slug="input")
-        home.add_child(instance=category)
-        sub = SubcategoryPage(title="Movement", slug="movement")
-        category.add_child(instance=sub)
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.catalogue = content.reload()
 
-        cls.component = ComponentPage(title="Potentiometer", slug="potentiometer")
-        sub.add_child(instance=cls.component)
+    def test_every_part_loads(self):
+        self.assertEqual(len(self.catalogue.parts), 130)
 
-        for order, (number, label) in enumerate(
-            [("0390", "10kΩ, panel mount"), ("0388", "1kΩ, panel mount")]
-        ):
-            StockedPart.objects.create(
-                page=cls.component, part_number=number, label=label, sort_order=order
-            )
+    def test_every_part_has_a_category(self):
+        self.assertEqual([p.slug for p in self.catalogue.parts if p.category is None], [])
 
-    def test_one_component_covers_several_part_numbers(self):
-        """The point of the split: 25 pots, one explanation."""
-        self.assertEqual(self.component.part_numbers, ["0390", "0388"])
+    def test_every_section_heading_is_recognised(self):
+        # Guaranteed by the loader raising, but assert it for the real files so
+        # a bad edit fails here rather than at the first pageview.
+        labels = {s.label for p in self.catalogue.parts for s in p.sections}
+        self.assertTrue(labels <= set(content.LABEL_TO_ANCHOR))
 
-    def test_stocked_parts_keep_their_order(self):
-        labels = [p.label for p in self.component.stocked_parts.all()]
-        self.assertEqual(labels, ["10kΩ, panel mount", "1kΩ, panel mount"])
+    def test_part_numbers_are_unique_across_the_catalogue(self):
+        seen = [n for p in self.catalogue.parts for n in p.part_numbers]
+        self.assertEqual(len(seen), len(set(seen)))
 
-    def test_a_part_number_belongs_to_one_component(self):
-        from django.db import IntegrityError
+    def test_search_ranks_title_matches_first(self):
+        results = self.catalogue.search("potentiometer")
+        self.assertTrue(results)
+        self.assertIn("potentiometer", results[0].title.lower())
 
-        other = ComponentPage(title="Other", slug="other")
-        self.component.get_parent().add_child(instance=other)
-        with self.assertRaises(IntegrityError):
-            StockedPart.objects.create(page=other, part_number="0390")
+    def test_every_media_path_in_the_prose_exists_on_disk(self):
+        """The diagrams are referenced by path, not by a database row.
 
-    def test_page_renders_without_inventory(self):
-        """Inventory being unreachable must not fail a documentation page."""
-        response = self.client.get(self.component.url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Potentiometer")
+        Nothing resolves these at runtime any more, so a missing or mis-cased
+        file is a broken image on a live page and nothing else notices. The
+        filenames contain spaces and mixed case, hence the wide character class
+        and the exact-case check.
+        """
+        pattern = re.compile(r'/(images|videos)/parts/([^"\'<>)\]]+)')
+        root = Path(settings.WHITENOISE_ROOT)
+        missing = []
+        for path in sorted((Path(settings.CONTENT_DIR) / "parts").glob("*.md")):
+            for kind, name in pattern.findall(path.read_text(encoding="utf-8")):
+                target = root / kind / "parts" / name.strip()
+                if not target.exists():
+                    missing.append(f"{path.name}: /{kind}/parts/{name.strip()}")
+        self.assertEqual(missing, [])
+
+    def test_frontmatter_images_exist_on_disk(self):
+        for part in self.catalogue.parts:
+            if part.image:
+                target = Path(settings.WHITENOISE_ROOT) / "images" / "parts" / part.image
+                self.assertTrue(target.exists(), f"{part.slug}: {part.image}")
 
 
-class GroupDerivedPartsTests(TestCase):
-    """A component page can read its parts from an inventory group.
-
-    This is what replaced hand-listing 25 potentiometer part numbers: the
-    membership question is answered where the parts are maintained, so adding,
-    retiring or reclassifying one needs no edit here.
-    """
-
+class ViewTests(SimpleTestCase):
     @classmethod
-    def setUpTestData(cls):
-        home = HomePage.objects.get()
-        category = CategoryPage(title="Input", slug="input")
-        home.add_child(instance=category)
-        cls.category = category
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.catalogue = content.reload()
 
-    def _component(self, slug, **kwargs):
-        page = ComponentPage(title="Potentiometer", slug=slug, **kwargs)
-        self.category.add_child(instance=page)
-        return page
+    def test_home(self):
+        self.assertEqual(self.client.get("/").status_code, 200)
 
-    @patch("stock.client.list_by_group")
-    def test_variants_come_from_the_group(self, mock_group):
-        mock_group.return_value = [
-            {"part_number": "0390", "short_name": "potentiometer",
-             "description": "potentiometer, 10kΩ, panel mount", "on_floor": 30},
-            {"part_number": "0308", "short_name": "potentiometer",
-             "description": "potentiometer, trimmer, 500Ω", "on_floor": 20},
-        ]
-        page = self._component("pot-a", inventory_group="potentiometers")
-        variants = page.get_context(RequestFactory().get("/"))["variants"]
-        self.assertEqual([v["number"] for v in variants], ["0390", "0308"])
-        # short_name is the same word for every part in the group, so the
-        # description is what actually distinguishes them.
-        self.assertEqual(variants[0]["label"], "potentiometer, 10kΩ, panel mount")
+    def test_every_part_url_resolves(self):
+        bad = []
+        for part in self.catalogue.parts:
+            if self.client.get(part.url).status_code != 200:
+                bad.append(part.url)
+        self.assertEqual(bad, [])
 
-    @patch("stock.client.list_by_group")
-    def test_hand_listed_parts_are_additive(self, mock_group):
-        """A page can use a group and still name a stray part filed elsewhere."""
-        mock_group.return_value = [
-            {"part_number": "0390", "short_name": "pot", "description": "d", "on_floor": 1}
-        ]
-        page = self._component("pot-b", inventory_group="potentiometers")
-        StockedPart.objects.create(page=page, part_number="9999", label="oddity")
+    def test_every_category_and_subcategory_url_resolves(self):
+        for category in self.catalogue.categories:
+            self.assertEqual(self.client.get(category.url).status_code, 200, category.url)
+            for sub in category.subcategories:
+                self.assertEqual(self.client.get(sub.url).status_code, 200, sub.url)
 
-        with patch("stock.client.get_stock_many", return_value={}):
-            variants = page.get_context(RequestFactory().get("/"))["variants"]
-        self.assertEqual([v["number"] for v in variants], ["0390", "9999"])
+    def test_part_is_404_under_the_wrong_category(self):
+        """One page, one URL. Serving it under every category would hand search
+        engines a pile of duplicates."""
+        part = next(p for p in self.catalogue.parts if p.subcategory is None)
+        wrong = next(c for c in self.catalogue.categories if c is not part.category)
+        self.assertEqual(self.client.get(f"/{wrong.slug}/{part.slug}/").status_code, 404)
 
-    @patch("stock.client.list_by_group")
-    def test_a_part_in_both_is_not_duplicated(self, mock_group):
-        mock_group.return_value = [
-            {"part_number": "0390", "short_name": "pot", "description": "d", "on_floor": 1}
-        ]
-        page = self._component("pot-c", inventory_group="potentiometers")
-        StockedPart.objects.create(page=page, part_number="0390", label="dupe")
+    def test_unknown_paths_404(self):
+        for url in ["/nonsense/", "/input/nonsense/", "/input/light/nonsense/"]:
+            self.assertEqual(self.client.get(url).status_code, 404, url)
 
-        with patch("stock.client.get_stock_many", return_value={}):
-            variants = page.get_context(RequestFactory().get("/"))["variants"]
-        self.assertEqual([v["number"] for v in variants], ["0390"])
+    def test_part_sets(self):
+        self.assertEqual(self.client.get("/part-sets/").status_code, 200)
+        for part_set in self.catalogue.part_sets:
+            self.assertEqual(self.client.get(part_set.url).status_code, 200)
 
-    @patch("stock.client.list_by_group")
-    def test_page_still_renders_when_inventory_is_down(self, mock_group):
-        """The documentation is the point of the page; stock is a bonus."""
-        mock_group.return_value = []
-        page = self._component(
-            "pot-d", inventory_group="potentiometers",
-            docs_what_it_is="<p>A variable resistor.</p>",
-        )
-        response = self.client.get(page.url)
+    def test_search_page(self):
+        response = self.client.get("/search/", {"query": "potentiometer"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "A variable resistor")
+        self.assertContains(response, "otentiometer")
 
-    def test_without_a_group_it_falls_back_to_the_inline_list(self):
-        page = self._component("pot-e")
-        StockedPart.objects.create(page=page, part_number="0390", label="10kΩ")
-        with patch("stock.client.get_stock_many", return_value={}):
-            variants = page.get_context(RequestFactory().get("/"))["variants"]
-        self.assertEqual([v["number"] for v in variants], ["0390"])
-
-
-class MarkdownRenderingTests(TestCase):
-    """The content is markdown, and the pieces that matter must survive nh3."""
-
-    def render(self, text):
-        from wagtailmarkdown.utils import render_markdown
-
-        return str(render_markdown(text))
-
-    def test_fenced_code_keeps_its_language_hint(self):
-        html = self.render("```cpp\nint x = A0;\n```")
-        self.assertIn("<pre>", html)
-        self.assertIn("language-cpp", html)
-        self.assertIn("int x = A0;", html)
-
-    def test_include_directives_are_not_eaten_as_html(self):
-        """6 parts have #include <Servo.h> in their code."""
-        html = self.render("```cpp\n#include <Servo.h>\n```")
-        self.assertIn("Servo.h", html)
-
-    def test_inline_figure_and_caption_survive(self):
-        """59 diagrams are inline <figure> HTML inside the markdown."""
-        html = self.render(
-            '<figure class="image"><img src="/images/parts/x.gif" alt="X">'
-            "<figcaption>A caption</figcaption></figure>"
-        )
-        for fragment in ("<figure", "<img", "/images/parts/x.gif", "<figcaption", "A caption"):
-            self.assertIn(fragment, html)
-
-    def test_scripts_are_still_stripped(self):
-        html = self.render("<script>alert(1)</script>\n\nSafe text")
-        self.assertNotIn("<script", html)
-        self.assertIn("Safe text", html)
-
-
-class LegacyImagePathTests(TestCase):
-    """/images/parts/<file> keeps resolving, so the markdown needs no rewriting."""
-
-    def test_unknown_filename_404s(self):
-        self.assertEqual(self.client.get("/images/parts/nope.gif").status_code, 404)
-
-    def test_known_filename_redirects_to_the_image(self):
-        import io
-
-        from django.core.files.base import ContentFile
-        from PIL import Image as PILImage
-        from wagtail.images.models import Image
-
-        from catalog.models import MediaAlias
-
-        buffer = io.BytesIO()
-        PILImage.new("RGB", (1, 1)).save(buffer, format="PNG")
-        image = Image.objects.create(
-            title="diagram",
-            file=ContentFile(buffer.getvalue(), name="diagram.png"),
-            width=1,
-            height=1,
-        )
-        MediaAlias.objects.create(filename="potentiometer_interior.gif", image=image)
-        response = self.client.get("/images/parts/potentiometer_interior.gif")
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("diagram", response["Location"])
+    def test_named_routes_are_not_swallowed_by_the_category_pattern(self):
+        """Category slugs sit at the root of the path, so /search/ and
+        /part-sets/ are one ordering mistake away from becoming categories."""
+        self.assertEqual(self.client.get("/search/").status_code, 200)
+        self.assertEqual(self.client.get("/part-sets/").status_code, 200)

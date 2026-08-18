@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static wagtailcore_tags %}
+{% load static %}
 
 {% block body_class %}template-searchresults{% endblock %}
 
@@ -17,21 +17,19 @@
 <ul>
     {% for result in search_results %}
     <li>
-        <h4><a href="{% pageurl result %}">{{ result }}</a></h4>
-        {% if result.search_description %}
-        {{ result.search_description }}
+        <h4><a href="{{ result.url }}">{{ result.title }}</a></h4>
+        {% if result.description %}
+        {{ result.description }}
         {% endif %}
     </li>
     {% endfor %}
 </ul>
 
-{% if search_results.has_previous %}
-<a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.previous_page_number }}">Previous</a>
-{% endif %}
-
-{% if search_results.has_next %}
-<a href="{% url 'search' %}?query={{ search_query|urlencode }}&amp;page={{ search_results.next_page_number }}">Next</a>
-{% endif %}
+{% comment %}
+    No pagination. The whole catalogue is 130 parts, so every match for any
+    query fits on one page; the Wagtail version paginated because its backend
+    returned a lazy queryset, not because the result sets were ever large.
+{% endcomment %}
 {% elif search_query %}
 No results found
 {% endif %}

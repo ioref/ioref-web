@@ -1,7 +1,10 @@
 # ioref-web
 
 The public ioref.org site: maker cards, categories, part sets, and a native
-inventory browser. Wagtail 7 on Django.
+inventory browser. Django, with no CMS and no database.
+
+The guides are markdown files in `content/`. Editing the site means editing a
+file and committing it.
 
 Replaces **maker-cards** (`guides.ioref.org`, Express + Handlebars + Directus).
 Visually it is the same site — `static/css/main.css` is carried over verbatim
@@ -16,34 +19,62 @@ This site reads it over HTTP with a read-scoped API key and joins on
 ```bash
 uv sync
 cp .env.example .env          # set INVENTORY_API_KEY
-uv run python manage.py migrate
-uv run python manage.py seed_site
-uv run python manage.py createsuperuser
 uv run python manage.py runserver
 ```
 
-Wagtail admin at `/admin/`.
+No migrate, no superuser, no seed step: there is no database and no login, and
+the content is checked in, so a fresh clone runs.
 
 For the inventory integration to do anything, ioref-inventory must be running
 and `INVENTORY_API_KEY` must hold a **read**-scoped key generated in its admin.
 Without one the site still works — stock blocks are simply omitted.
 
-## Page tree
+## Editing a card
+
+Every card is one file, `content/parts/<slug>.md`:
+
+```markdown
+---
+title: Infrared Reciever
+description: Interprets infrared remote control signals.
+category: input
+subcategory: light
+image: 0251.jpg
+parts:
+- number: '0251'
+---
+
+## What it is
+
+The infrared receiver interprets infrared light commands.
+```
+
+The `##` headings are a fixed set of seven, in a fixed display order: About,
+What it is, When to use it, How it works, How to use it, Getting started,
+Resources. A heading outside that set is an error at startup rather than a
+section that silently disappears from the page. Omit any you do not need.
+
+Images referenced as `/images/parts/<file>` are files under
+`public/images/parts/`, which is served at the root of the URL space rather
+than under `/static/`. Restart the server after editing; content is read once
+at startup.
+
+`content/categories.yml` holds the five categories and their subcategories,
+`content/part-sets.yml` the part sets.
+
+## Structure
 
 ```
-HomePage
-├── CategoryPage             input · output · power · connector · controller
-│   ├── SubcategoryPage
-│   │   └── ComponentPage
-│   │         └── StockedPart (inline, not a page)
-│   └── ComponentPage        components hung straight off a category
-└── PartSetIndexPage
-    └── PartSetPage
+content/parts/*.md          one file per component
+content/categories.yml      input · output · power · connector · controller
+content/part-sets.yml
+public/images/parts/        media the prose references by path
+public/videos/parts/
 ```
 
-**A component is not a part.** `ComponentPage` answers "what is a ceramic
-capacitor"; its `StockedPart` rows are the 10pF, 22pF and 47pF the lab actually
-holds, each with its own bin, count and price in ioref-inventory.
+**A component is not a part.** One file answers "what is a ceramic capacitor";
+its `parts:` list is the 10pF, 22pF and 47pF the lab actually holds, each with
+its own bin, count and price in ioref-inventory.
 
 This is the fix for a real problem in the old data: `data.csv` repeats the same
 capacitor explanation across 33 rows, the same incandescent-bulb explanation
@@ -113,28 +144,25 @@ card where one exists. Read-only: the API key is read-scoped.
 npx sass static/css/main.scss static/css/main.css
 ```
 
-The header search is a plain GET to Wagtail's search view. The original ran a
-live autocomplete against Directus via jQuery, bootstrap-autocomplete and a
-Handlebars template; that machinery went with Directus.
+The header search is a plain GET, matched as a substring across titles and
+prose with title hits ranked first. 130 parts fit in memory, so there is no
+index. The original ran a live autocomplete against Directus via jQuery,
+bootstrap-autocomplete and a Handlebars template; that machinery went with
+Directus.
 
-## Importing from Directus
+## Where the content came from
 
-```bash
-# once, from ioref-inventory -- writes the JSONL bundle both apps read
-./tools/directus_to_json.sh physcomp.sql ../directus-export
+Directus → Wagtail → files. The middle step is gone: `content/` is the source
+of truth now and is edited directly.
 
-uv run python manage.py import_directus ../directus-export
-uv run python manage.py import_directus ../directus-export --uploads /path/to/uploads
-```
+Of 1,511 source rows in Directus about 130 carried guide content and became
+the files in `content/parts/`; the rest are stock only and belong to
+ioref-inventory. The seven `docs_*` fields were markdown in Directus and are
+markdown here, byte for byte.
 
-Idempotent; pages are matched on slug within their parent. Of 1,511 source rows
-about 130 carry guide content and become components -- the rest are stock only
-and belong to ioref-inventory.
-
-The `docs_*` fields are copied verbatim, because they are markdown already.
-
-Images need the Directus uploads directory, which the SQL dump does not contain.
-Run without `--uploads` first and re-run later to backfill.
+The Wagtail-era importer and the exporter that produced `content/` are in git
+history rather than the tree, since neither can run without the models they
+were written against.
 
 ## Tests
 

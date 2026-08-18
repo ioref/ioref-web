@@ -10,7 +10,7 @@ Read-only and public: the API key is read-scoped, and nothing here can write.
 from django.core.paginator import Paginator
 from django.shortcuts import render
 
-from catalog.models import StockedPart
+from catalog.content import get_catalogue
 
 from .client import InventoryUnavailable, get_part, list_parts
 
@@ -20,19 +20,17 @@ PAGE_SIZE = 60
 def _guide_links(part_numbers):
     """Map part numbers to their maker card URL, where one exists.
 
-    Inventory holds many parts with no guide -- consumables, fasteners -- so
-    this is a left join, not an assumption.
+    Inventory holds many parts with no guide (consumables, fasteners), so this
+    is a left join, not an assumption.
     """
-    stocked = (
-        StockedPart.objects.filter(part_number__in=part_numbers)
-        .select_related("page")
-    )
-    # A stocked part points at the component that documents it, so several
-    # part numbers can share one guide -- 33 capacitors, one explanation.
+    catalogue = get_catalogue()
+    wanted = set(part_numbers)
+    # Several part numbers can share one guide: 33 capacitors, one explanation.
     return {
-        s.part_number: s.page.url
-        for s in stocked
-        if s.page.live
+        number: part.url
+        for part in catalogue.parts
+        for number in part.part_numbers
+        if number in wanted
     }
 
 

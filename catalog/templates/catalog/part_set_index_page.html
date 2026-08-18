@@ -1,13 +1,12 @@
 {% extends "base.html" %}
-{% load wagtailcore_tags wagtailimages_tags %}
 
 {% block content %}
     {% include "includes/page_title.html" with title=page.title %}
     <div class="part_tiles">
         {% for set in part_sets %}
-            <a class="part_tile noselect" href="{% pageurl set %}">
+            <a class="part_tile noselect" href="{{ set.url }}">
                 <div class="part_img_container">
-                    {% if set.image %}{% image set.image fill-200x200 class="img_part_tile" alt=set.title %}{% endif %}
+                    {% if set.image %}<img class="img_part_tile" src="{{ set.image_url }}" alt="{{ set.title }}">{% endif %}
                 </div>
                 <div class="part_name">{{ set.title }}</div>
             </a>

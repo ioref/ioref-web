@@ -1,13 +1,12 @@
-{% load wagtailcore_tags %}
 {# Ported from maker-cards views/partials/side-category-menu.hbs. #}
 <div class="side_menu">
     <div class="category_list">
         {% for category in all_categories %}
             <div class="category">
-                <a href="{% pageurl category %}">{{ category.title }}</a>
+                <a href="{{ category.url }}">{{ category.title }}</a>
                 {% if category.id == active_category.id %}
-                    {% for sub in category.get_children.live.specific %}
-                        <div class="subcategory"><a href="{% pageurl sub %}">{{ sub.title }}</a></div>
+                    {% for sub in category.subcategories %}
+                        <div class="subcategory"><a href="{{ sub.url }}">{{ sub.title }}</a></div>
                     {% endfor %}
                 {% endif %}
             </div>
@@ -22,7 +21,7 @@
             <ul class="dropdown-menu" aria-labelledby="categoryDropdown">
                 {% for category in all_categories %}
                     <li class="dropdown_item{% if category.id == active_category.id %} active{% endif %}">
-                        <a href="{% pageurl category %}" class="dropdown_item_label">{{ category.title }}</a>
+                        <a href="{{ category.url }}" class="dropdown_item_label">{{ category.title }}</a>
                     </li>
                 {% endfor %}
             </ul>

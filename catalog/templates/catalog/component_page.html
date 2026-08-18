@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load wagtailcore_tags wagtailimages_tags wagtailmarkdown %}
 {% comment %}
     Ported from maker-cards views/parts/part.hbs.
 
@@ -16,13 +15,13 @@
         {% if page.category %}
             <div class="attribute">
                 <div class="label">Category:</div>
-                <div class="value"><a href="{% pageurl page.category %}">{{ page.category.title }}</a></div>
+                <div class="value"><a href="{{ page.category.url }}">{{ page.category.title }}</a></div>
             </div>
         {% endif %}
         {% if page.subcategory %}
             <div class="attribute">
                 <div class="label">Subcategory:</div>
-                <div class="value"><a href="{% pageurl page.subcategory %}">{{ page.subcategory.title }}</a></div>
+                <div class="value"><a href="{{ page.subcategory.url }}">{{ page.subcategory.title }}</a></div>
             </div>
         {% endif %}
         {% if page.signal_type %}
@@ -33,14 +32,14 @@
         {% endif %}
 
 
-        {% for set in page.part_sets.all %}
+        {% for set in page.part_sets %}
             <div class="attribute">
                 <div class="label">Part Set:</div>
-                <div class="value"><a href="{% pageurl set %}">{{ set.title }}</a></div>
+                <div class="value"><a href="{{ set.url }}">{{ set.title }}</a></div>
             </div>
         {% endfor %}
 
-        {% if page.description %}<div class="attribute">{{ page.description|richtext }}</div>{% endif %}
+        {% if page.description %}<div class="attribute">{{ page.description }}</div>{% endif %}
 
         {% if variants|length == 1 %}
             {% with v=variants.0 %}
@@ -64,7 +63,7 @@
 
     <div class="content">
         {% if page.image %}
-            <div class="part_image">{% image page.image width-600 alt=page.title %}</div>
+            <div class="part_image"><img src="{{ page.image_url }}" alt="{{ page.title }}"></div>
         {% endif %}
 
         {% for section in page.sections %}
@@ -75,7 +74,7 @@
                 code blocks and inline <figure> diagrams both come through; see
                 WAGTAILMARKDOWN in settings for the sanitiser allowances.
             {% endcomment %}
-            <div class="section_body">{{ section.body|markdown }}</div>
+            <div class="section_body">{{ section.body_html }}</div>
         {% endfor %}
 
         {% if variants|length > 1 %}

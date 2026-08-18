@@ -1,86 +1,54 @@
+# syntax=docker/dockerfile:1
 
-# This stage installs build dependencies and compiles Python packages.
-# It will be discarded in the final image, keeping only the compiled packages.
-FROM python:3.12-slim-bookworm AS builder
+# Follows ioref-inventory's Dockerfile, minus everything to do with a database.
+# The previous file here was the stock Wagtail scaffold and had never been run:
+# it installed from a requirements.txt this project does not have, on Python
+# 3.12 against a project that requires 3.13, and ran `migrate` at startup.
 
-# Install system packages required to build Python packages.
-RUN apt-get update --yes --quiet && apt-get install --yes --quiet --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    libmariadb-dev \
-    libjpeg62-turbo-dev \
-    zlib1g-dev \
-    libwebp-dev \
- && rm -rf /var/lib/apt/lists/* \
- && python -m venv /opt/venv
+# Pinned, and given its own stage rather than an inline `COPY --from=ghcr.io/...`:
+# Dependabot's docker ecosystem reads FROM lines, so this is what makes the uv
+# version something it can raise a pull request against.
+FROM ghcr.io/astral-sh/uv:0.12.5 AS uv
 
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Install the project requirements.
-COPY requirements.txt /
-RUN pip install -r /requirements.txt
-
-# Install the application server.
-RUN pip install "gunicorn==25.1.0"
-
-
-# RUNTIME STAGE
-# Use an official Python runtime based on Debian 12 "bookworm" as a parent image.
-FROM python:3.12-slim-bookworm AS runtime
-
-# Install runtime system packages required by Wagtail and Django.
-# These are the runtime libraries needed by the compiled Python packages.
-RUN apt-get update --yes --quiet && apt-get install --yes --quiet --no-install-recommends \
-    libpq5 \
-    libmariadb3 \
-    libjpeg62-turbo \
-    libwebp7 \
- && rm -rf /var/lib/apt/lists/*
-
-# Add user that will be used in the container.
-RUN useradd wagtail
-
-# Port used by this container to serve HTTP.
-EXPOSE 8000
-
-# Set environment variables.
-# 1. Force Python stdout and stderr streams to be unbuffered.
-# 2. Set PORT variable that is used by Gunicorn. This should match "EXPOSE"
-#    command.
-# 3. Add the virtual environment to PATH.
+FROM python:3.13-slim AS base
 ENV PYTHONUNBUFFERED=1 \
-    PORT=8000 \
-    PATH="/opt/venv/bin:$PATH"
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH"
 
+COPY --from=uv /uv /usr/local/bin/uv
 
-
-# Copy the virtual environment from the builder stage.
-COPY --from=builder /opt/venv /opt/venv
-
-# Use /app folder as a directory where the source code is stored.
 WORKDIR /app
 
-# Set this directory to be owned by the "wagtail" user. This Wagtail project
-# uses SQLite, the folder needs to be owned by the user that
-# will be writing to the database file.
-RUN chown wagtail:wagtail /app
+# Dependencies resolve from the lockfile in their own layer, so application
+# edits do not force a reinstall on every build.
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
 
-# Copy the source code of the project into the container.
-COPY --chown=wagtail:wagtail . .
+COPY . .
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
 
-# Use user "wagtail" to run the build commands below and the server itself.
-USER wagtail
+# collectstatic needs *a* key but not the real one; the runtime value arrives
+# through the environment. This handles css/js only: the guide media lives in
+# public/, which WhiteNoise serves straight from the source directory at the
+# root of the URL space, and which collectstatic must not touch.
+RUN SECRET_KEY=build-only python manage.py collectstatic --noinput
 
-# Collect static files.
-RUN python manage.py collectstatic --noinput --clear
+# No writable data directory: the guides are read-only files baked into the
+# image and there is no database to keep anywhere.
+RUN useradd --system --create-home --uid 1001 ioref
+USER ioref
 
-# Runtime command that executes when "docker run" is called, it does the
-# following:
-#   1. Migrate the database.
-#   2. Start the application server.
-# WARNING:
-#   Migrating database at the same time as starting the server IS NOT THE BEST
-#   PRACTICE. The database should be migrated manually or using the release
-#   phase facilities of your hosting platform. This is used only so the
-#   Wagtail instance can be started with a simple "docker run" command.
-CMD set -xe; python manage.py migrate --noinput; gunicorn config.wsgi:application
+EXPOSE 8000
+
+# The home page renders the whole category taxonomy from content/, so a 200
+# here means the markdown parsed. It makes no call to inventory.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').status==200 else 1)"
+
+# Four workers rather than inventory's two: there is no SQLite writer lock to
+# contend for here, and each worker parses content/ once at startup into its
+# own memory.
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "60"]

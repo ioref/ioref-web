@@ -1,9 +1,8 @@
 {% extends "base.html" %}
-{% load wagtailcore_tags %}
 
 {% block content %}
     {% include "includes/page_title.html" with title=page.title %}
-    {% if page.description %}<div class="intro">{{ page.description|richtext }}</div>{% endif %}
+    {% if page.description %}<div class="intro">{{ page.description }}</div>{% endif %}
     <div class="part_tiles">
         {% for part in set_parts %}
             {% include "includes/part_tile.html" %}

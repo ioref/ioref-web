@@ -3,10 +3,12 @@ name = "ioref-web"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "django>=6.1,<7",
     "django-environ>=0.14.0",
     "gunicorn>=26.0.0",
     "httpx>=0.28.1",
-    "wagtail>=6,<8",
-    "wagtail-markdown>=0.14.1",
+    "markdown>=3.10.3",
+    "nh3>=0.3.6",
+    "pyyaml>=6.0.3",
     "whitenoise>=6.12.0",
 ]
