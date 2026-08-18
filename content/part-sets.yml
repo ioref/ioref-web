@@ -1,0 +1,14 @@
+part_sets:
+- slug: breadboard
+  title: Breadboard
+  description: Allows for easy assembly and disassembly of electrical circuits.
+  image: Breadboard.jpg
+- slug: jumper-wire
+  title: Jumper Wire
+  description: Connects components electrically. Designed to work with a breadboard.
+  image: wire.jpg
+- slug: resistor
+  title: Resistor
+  description: Resists the flow of electricity through it. The particular resistance of each
+    resistor can be decoded from the colored bands printed on it.
+  image: resistor.jpg

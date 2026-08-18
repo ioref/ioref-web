@@ -1,0 +1,40 @@
+categories:
+- slug: connector
+  title: Connector
+- slug: controller
+  title: Controller
+- slug: input
+  title: Input
+  subcategories:
+  - slug: acceleration
+    title: Acceleration
+  - slug: light
+    title: Light
+  - slug: movement
+    title: Movement
+  - slug: orientation
+    title: Orientation
+  - slug: position
+    title: Position
+  - slug: proximity
+    title: Proximity
+  - slug: temperature
+    title: Temperature
+- slug: output
+  title: Output
+  subcategories:
+  - slug: light
+    title: Light
+  - slug: movement
+    title: Movement
+  - slug: power
+    title: Power
+  - slug: sound
+    title: Sound
+  - slug: visual
+    title: Visual
+- slug: power
+  title: Power
+  subcategories:
+  - slug: power
+    title: Power
