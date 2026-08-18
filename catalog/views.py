@@ -77,9 +77,7 @@ def category_child(request, category_slug, slug):
 
 
 def part_in_subcategory(request, category_slug, subcategory_slug, slug):
-    return _render_part(
-        request, get_catalogue(), slug, category_slug, subcategory_slug
-    )
+    return _render_part(request, get_catalogue(), slug, category_slug, subcategory_slug)
 
 
 def _render_subcategory(request, catalogue, page):

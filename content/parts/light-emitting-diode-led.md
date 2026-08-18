@@ -15,7 +15,7 @@ parts:
 
 ## About
 
-LEDs are a commonly used component, as the most straightforward way to generate light, requiring only power and ground. The most basic LEDs have two electrical leads coming out of the casing. The longer lead (the anode) is positive and must be connected to power, while the shorter lead (the cathode) is negative and must be connected to ground. If the leads are swapped, power will not flow through and illuminate the LED, as LEDs are diodes, only allowing power to flow in one direction. 
+LEDs are a commonly used component, as the most straightforward way to generate light, requiring only power and ground. The most basic LEDs have two electrical leads coming out of the casing. The longer lead (the anode) is positive and must be connected to power, while the shorter lead (the cathode) is negative and must be connected to ground. If the leads are swapped, power will not flow through and illuminate the LED, as LEDs are diodes, only allowing power to flow in one direction.
 
 There are also more complex LEDs with three leads corresponding to red, green, and blue, and a fourth lead to power or ground depending on the type. These can be supplied in various configurations to light up the LED with the whole spectrum of color.
 
@@ -35,11 +35,11 @@ void setup() {
 }
 
 void loop() {
-  digitalWrite(LED_A, HIGH);  
-  digitalWrite(LED_B, LOW);  
-  delay(1000);                       
-  digitalWrite(LED_B, HIGH);  
-  digitalWrite(LED_A, LOW);  
-  delay(1000);                       
+  digitalWrite(LED_A, HIGH);
+  digitalWrite(LED_B, LOW);
+  delay(1000);
+  digitalWrite(LED_B, HIGH);
+  digitalWrite(LED_A, LOW);
+  delay(1000);
 }
 ```

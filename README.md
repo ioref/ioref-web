@@ -35,7 +35,7 @@ Every card is one file, `content/parts/<slug>.md`:
 
 ```markdown
 ---
-title: Infrared Reciever
+title: Infrared Receiver
 description: Interprets infrared remote control signals.
 category: input
 subcategory: light

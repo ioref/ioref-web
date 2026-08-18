@@ -1,0 +1,53 @@
+---
+# prek hooks for ioref-web.
+#
+#   prek install           once per clone, to run on commit
+#   prek run --all-files   manually, over everything
+#
+# Adapted from ha-config's config, and kept deliberately close to
+# ioref-inventory's so the two repos behave the same way.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        # Guide media is legitimately large: the biggest tracked asset is a
+        # 9.3MB mp4. The default 500kB would reject a normal part video, so
+        # this is set to catch an accidental database or archive instead.
+        args: [--maxkb=10240]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+
+  # Lint first so its fixes are formatted, then format.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+        # "Waht" is deliberate in catalog/tests.py: the test asserts an
+        # unknown heading raises rather than silently dropping the section,
+        # so correcting it would make the heading valid and void the test.
+        args: [--ignore-words-list=waht]
+        # The drawio-exported SVGs carry encoded path data that reads as
+        # dozens of misspelled words. Nothing in them is prose.
+        exclude: |
+          (?x)^(
+            .*\.svg|
+            uv\.lock
+          )$
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint

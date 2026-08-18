@@ -4,7 +4,6 @@ description: 9V battery, alkaline or carbon zinc
 category: power
 signal_type: n/a
 image: 0892.jpg
-inventory_group: batteries
 related:
 - 5v-relay
 - transistor-pn2222

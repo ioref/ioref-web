@@ -38,7 +38,7 @@ def write_content(root, parts, categories=None, part_sets=None):
     (root / "categories.yml").write_text(
         categories
         or "categories:\n- slug: input\n  title: Input\n  subcategories:\n"
-           "  - slug: light\n    title: Light\n",
+        "  - slug: light\n    title: Light\n",
         encoding="utf-8",
     )
     (root / "part-sets.yml").write_text(
@@ -63,18 +63,24 @@ class ParsingTests(SimpleTestCase):
         An author who appends a section to the end of a file should not thereby
         move it to the end of the page.
         """
-        cat = self.load({
-            "p": "---\ntitle: P\ncategory: input\n---\n\n"
-                 "## Resources\n\nLinks.\n\n## About\n\nA thing.\n"
-        })
-        self.assertEqual([s.label for s in cat.by_slug["p"].sections], ["About", "Resources"])
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ncategory: input\n---\n\n"
+                "## Resources\n\nLinks.\n\n## About\n\nA thing.\n"
+            }
+        )
+        self.assertEqual(
+            [s.label for s in cat.by_slug["p"].sections], ["About", "Resources"]
+        )
 
     def test_empty_sections_are_omitted(self):
         """Live card 0390 has no About section; the jump menu must skip it."""
-        cat = self.load({
-            "p": "---\ntitle: P\ncategory: input\n---\n\n"
-                 "## About\n\n## What it is\n\nA variable resistor.\n"
-        })
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ncategory: input\n---\n\n"
+                "## About\n\n## What it is\n\nA variable resistor.\n"
+            }
+        )
         self.assertEqual([s.label for s in cat.by_slug["p"].sections], ["What it is"])
 
     def test_fenced_code_survives_rendering(self):
@@ -83,9 +89,11 @@ class ParsingTests(SimpleTestCase):
         This is why the content is markdown and why the sanitiser has to allow
         <pre> and <code>: rich text would have eaten them on first save.
         """
-        cat = self.load({
-            "p": f"---\ntitle: P\ncategory: input\n---\n\n## Getting started\n\n{FENCED}"
-        })
+        cat = self.load(
+            {
+                "p": f"---\ntitle: P\ncategory: input\n---\n\n## Getting started\n\n{FENCED}"
+            }
+        )
         html = str(cat.by_slug["p"].sections[0].body_html)
         self.assertIn("<code", html)
         self.assertIn("Serial.begin(9600)", html)
@@ -93,34 +101,42 @@ class ParsingTests(SimpleTestCase):
     def test_figure_markup_survives_rendering(self):
         """59 diagrams are inline <figure> HTML. Narrowing the allowed tags
         deletes them silently, and only on the pages that use them."""
-        cat = self.load({
-            "p": f"---\ntitle: P\ncategory: input\n---\n\n## How it works\n\n{FIGURE}\n"
-        })
+        cat = self.load(
+            {
+                "p": f"---\ntitle: P\ncategory: input\n---\n\n## How it works\n\n{FIGURE}\n"
+            }
+        )
         html = str(cat.by_slug["p"].sections[0].body_html)
         self.assertIn("<figure", html)
         self.assertIn("<figcaption", html)
         self.assertIn("/images/parts/pot.gif", html)
 
     def test_script_tags_are_stripped(self):
-        cat = self.load({
-            "p": "---\ntitle: P\ncategory: input\n---\n\n"
-                 "## About\n\n<script>alert(1)</script>Safe.\n"
-        })
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ncategory: input\n---\n\n"
+                "## About\n\n<script>alert(1)</script>Safe.\n"
+            }
+        )
         self.assertNotIn("<script", str(cat.by_slug["p"].sections[0].body_html))
 
     def test_part_numbers_stay_strings(self):
         """0386 is an identifier, not the integer 386."""
-        cat = self.load({
-            "p": "---\ntitle: P\ncategory: input\nparts:\n- number: '0386'\n---\n\n"
-                 "## About\n\nx\n"
-        })
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ncategory: input\nparts:\n- number: '0386'\n---\n\n"
+                "## About\n\nx\n"
+            }
+        )
         self.assertEqual(cat.by_slug["p"].part_numbers, ["0386"])
 
     def test_url_reflects_whether_a_subcategory_is_set(self):
-        cat = self.load({
-            "loose": "---\ntitle: L\ncategory: input\n---\n\n## About\n\nx\n",
-            "nested": "---\ntitle: N\ncategory: input\nsubcategory: light\n---\n\n## About\n\nx\n",
-        })
+        cat = self.load(
+            {
+                "loose": "---\ntitle: L\ncategory: input\n---\n\n## About\n\nx\n",
+                "nested": "---\ntitle: N\ncategory: input\nsubcategory: light\n---\n\n## About\n\nx\n",
+            }
+        )
         self.assertEqual(cat.by_slug["loose"].url, "/input/loose/")
         self.assertEqual(cat.by_slug["nested"].url, "/input/light/nested/")
 
@@ -128,34 +144,42 @@ class ParsingTests(SimpleTestCase):
         """A typo in a heading would otherwise delete the section from the page
         with nothing to show for it."""
         with self.assertRaises(ValueError) as caught:
-            self.load({
-                "p": "---\ntitle: P\ncategory: input\n---\n\n## Waht it is\n\nx\n"
-            })
+            self.load(
+                {"p": "---\ntitle: P\ncategory: input\n---\n\n## Waht it is\n\nx\n"}
+            )
         self.assertIn("Waht it is", str(caught.exception))
 
     def test_unknown_category_is_an_error(self):
         with self.assertRaises(ValueError):
-            self.load({"p": "---\ntitle: P\ncategory: nonsense\n---\n\n## About\n\nx\n"})
+            self.load(
+                {"p": "---\ntitle: P\ncategory: nonsense\n---\n\n## About\n\nx\n"}
+            )
 
     def test_subcategory_must_belong_to_the_category(self):
         with self.assertRaises(ValueError):
-            self.load({
-                "p": "---\ntitle: P\ncategory: input\nsubcategory: nope\n---\n\n## About\n\nx\n"
-            })
+            self.load(
+                {
+                    "p": "---\ntitle: P\ncategory: input\nsubcategory: nope\n---\n\n## About\n\nx\n"
+                }
+            )
 
     def test_dangling_related_slug_is_dropped_not_fatal(self):
         """A rename elsewhere should not 500 an unrelated page."""
-        cat = self.load({
-            "p": "---\ntitle: P\ncategory: input\nrelated:\n- gone\n---\n\n## About\n\nx\n"
-        })
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ncategory: input\nrelated:\n- gone\n---\n\n## About\n\nx\n"
+            }
+        )
         self.assertEqual(cat.by_slug["p"].related_parts, [])
 
     def test_deeper_headings_do_not_split_the_file(self):
         """### inside a section belongs to the author, not to the parser."""
-        cat = self.load({
-            "p": "---\ntitle: P\ncategory: input\n---\n\n"
-                 "## About\n\nIntro.\n\n### A detail\n\nMore.\n"
-        })
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ncategory: input\n---\n\n"
+                "## About\n\nIntro.\n\n### A detail\n\nMore.\n"
+            }
+        )
         sections = cat.by_slug["p"].sections
         self.assertEqual(len(sections), 1)
         self.assertIn("A detail", sections[0].body)
@@ -164,9 +188,7 @@ class ParsingTests(SimpleTestCase):
         """Part and Category reference each other. A generated repr that walks
         both directions runs until the process is killed, which is how this was
         found: an unrelated error page tried to repr a view's locals."""
-        cat = self.load({
-            "p": "---\ntitle: P\ncategory: input\n---\n\n## About\n\nx\n"
-        })
+        cat = self.load({"p": "---\ntitle: P\ncategory: input\n---\n\n## About\n\nx\n"})
         self.assertIn("slug='p'", repr(cat.by_slug["p"]))
         self.assertIn("slug='input'", repr(cat.categories[0]))
 
@@ -181,11 +203,14 @@ class RealContentTests(SimpleTestCase):
 
     def test_every_part_loads(self):
         self.assertEqual(
-            len(self.catalogue.parts), len(list((Path(settings.CONTENT_DIR) / "parts").glob("*.md")))
+            len(self.catalogue.parts),
+            len(list((Path(settings.CONTENT_DIR) / "parts").glob("*.md"))),
         )
 
     def test_every_part_has_a_category(self):
-        self.assertEqual([p.slug for p in self.catalogue.parts if p.category is None], [])
+        self.assertEqual(
+            [p.slug for p in self.catalogue.parts if p.category is None], []
+        )
 
     def test_every_section_heading_is_recognised(self):
         # Guaranteed by the loader raising, but assert it for the real files so
@@ -203,8 +228,7 @@ class RealContentTests(SimpleTestCase):
         a new file must not reintroduce the pattern.
         """
         offenders = [
-            p.slug for p in self.catalogue.parts
-            if re.match(r"^\d{4}-", p.slug)
+            p.slug for p in self.catalogue.parts if re.match(r"^\d{4}-", p.slug)
         ]
         self.assertEqual(offenders, [])
 
@@ -238,7 +262,9 @@ class RealContentTests(SimpleTestCase):
     def test_frontmatter_images_exist_on_disk(self):
         for part in self.catalogue.parts:
             if part.image:
-                target = Path(settings.WHITENOISE_ROOT) / "images" / "parts" / part.image
+                target = (
+                    Path(settings.WHITENOISE_ROOT) / "images" / "parts" / part.image
+                )
                 self.assertTrue(target.exists(), f"{part.slug}: {part.image}")
 
 
@@ -260,7 +286,9 @@ class ViewTests(SimpleTestCase):
 
     def test_every_category_and_subcategory_url_resolves(self):
         for category in self.catalogue.categories:
-            self.assertEqual(self.client.get(category.url).status_code, 200, category.url)
+            self.assertEqual(
+                self.client.get(category.url).status_code, 200, category.url
+            )
             for sub in category.subcategories:
                 self.assertEqual(self.client.get(sub.url).status_code, 200, sub.url)
 
@@ -269,7 +297,9 @@ class ViewTests(SimpleTestCase):
         engines a pile of duplicates."""
         part = next(p for p in self.catalogue.parts if p.subcategory is None)
         wrong = next(c for c in self.catalogue.categories if c is not part.category)
-        self.assertEqual(self.client.get(f"/{wrong.slug}/{part.slug}/").status_code, 404)
+        self.assertEqual(
+            self.client.get(f"/{wrong.slug}/{part.slug}/").status_code, 404
+        )
 
     def test_unknown_paths_404(self):
         for url in ["/nonsense/", "/input/nonsense/", "/input/light/nonsense/"]:

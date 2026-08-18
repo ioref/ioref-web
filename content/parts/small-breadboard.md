@@ -13,7 +13,7 @@ parts:
 
 ## About
 
-A breadboard is a grid of sockets for developing electronic circuits and microcontroller projects, composed of conductive strips beneath the nonconductive cover. Because it is solderless, it's useful in prototyping, but more susceptible to falling apart when handled roughly. 
+A breadboard is a grid of sockets for developing electronic circuits and microcontroller projects, composed of conductive strips beneath the nonconductive cover. Because it is solderless, it's useful in prototyping, but more susceptible to falling apart when handled roughly.
 
 The main grid, which is 10 columns wide and labelled a through j, has connections across every *row*, connecting a through e of every row, and f through j of every row. The small boards held in the physical computing lab only have these connections, and not the bracketing columns commonly found in other breadboards.
 

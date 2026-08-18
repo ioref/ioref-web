@@ -15,9 +15,9 @@ parts:
 
 A breadboard is a grid of sockets for developing electronic circuits and microcontroller projects, composed of conductive strips beneath the nonconductive cover. Because it is solderless, it's useful in prototyping, but more susceptible to falling apart when handled roughly.
 
-The main grid, which is 10 columns wide and labelled a through j, has connections across every *row*, connecting a through e of every row, and f through j of every row. On most boards, the 4 columns bracketing the main grid are all connected across every *column*, from the top of the board all the way to the bottom. These 4 columns are traditionally used as power and ground lines. 
+The main grid, which is 10 columns wide and labelled a through j, has connections across every *row*, connecting a through e of every row, and f through j of every row. On most boards, the 4 columns bracketing the main grid are all connected across every *column*, from the top of the board all the way to the bottom. These 4 columns are traditionally used as power and ground lines.
 
-As a caveat, some large boards held in the physical computing lab have the 4 external columns split in half (observe diagram below) and are therefore not conductive all the way down. 
+As a caveat, some large boards held in the physical computing lab have the 4 external columns split in half (observe diagram below) and are therefore not conductive all the way down.
 
 <figure class="image" style="text-align:center"> <img src="/images/parts/large bread.svg" alt="The conductive inside of a breadboard"> <figcaption style="text-align:center"><em>The conductive inside of a breadboard </em></figcaption></figure>
 

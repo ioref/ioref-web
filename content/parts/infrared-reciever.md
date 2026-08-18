@@ -1,5 +1,5 @@
 ---
-title: Infrared Reciever
+title: Infrared Receiver
 description: Interprets infrared remote control signals.
 category: input
 subcategory: light
@@ -36,7 +36,7 @@ _Adapted from [Sparkfun](https://learn.sparkfun.com/tutorials/ir-communication/a
 
 ## How to use it
 
-Connect the `R` VCC pin to 5V, the `G` GND pin to ground, and the `Y` out pin to a digital pin. Use the IRremote library to interpret the digital signals (exmaple below).
+Connect the `R` VCC pin to 5V, the `G` GND pin to ground, and the `Y` out pin to a digital pin. Use the IRremote library to interpret the digital signals (example below).
 
 The sensor can interpret commands from the [Infrared Remote](/parts/4006/) or most any other television remote.
 

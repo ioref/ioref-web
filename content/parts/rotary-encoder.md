@@ -6,7 +6,6 @@ category: input
 subcategory: movement
 signal_type: Continuous
 image: rotaryencoder.jpg
-inventory_group: encoders
 related:
 - potentiometer
 parts:

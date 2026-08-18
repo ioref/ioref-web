@@ -1,7 +1,15 @@
+---
 extends: default
 ignore-from-file: .gitignore
 rules:
   document-start: disable
   line-length: disable
   truthy:
+    # `on:` in a workflow is a key, not the boolean true.
     check-keys: false
+  indentation:
+    # content/*.yml write sequences flush against their key, which is valid
+    # and consistent within each file. "consistent" accepts that and the
+    # indented style the workflows use, while still catching a file that
+    # mixes the two.
+    indent-sequences: consistent

@@ -79,7 +79,7 @@ void loop() {
 - [Sparkfun Tutorial: Potentiometer](https://learn.sparkfun.com/tutorials/sparkfun-inventors-kit-experiment-guide---v40/circuit-1b-potentiometer)
 - [Arduino: Potentiometer Tutorial](https://www.arduino.cc/en/tutorial/potentiometer)
 - [Arduino: AnalogReadSerial Example](https://www.arduino.cc/en/Tutorial/BuiltInExamples/AnalogReadSerial)
- 
+
  #### Panel-mount hole pattern, from [BI Technologies P160 series datasheet](https://cdn-shop.adafruit.com/product-files/562/p160.pdf) (all values are millimeters):
 
 <img style="vertical-align: middle;" src="/images/parts/potentiometer_panel_mount_pattern.png" alt="Panel mount drawing: circle on the right with diameter of 7.5mm; circle on the left with diameter 3mm; the center to center distance is 7.8mm.">

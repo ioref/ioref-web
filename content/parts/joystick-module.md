@@ -5,7 +5,6 @@ category: input
 subcategory: movement
 signal_type: 'Up/down and left/right: Continuous (many possible values)'
 image: 0372.jpg
-inventory_group: potentiometers
 related:
 - small-lever-microswitch
 - three-axis-accelerometer

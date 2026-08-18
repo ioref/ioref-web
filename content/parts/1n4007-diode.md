@@ -6,7 +6,6 @@ category: power
 subcategory: power
 signal_type: n/a
 image: 4007.jpg
-inventory_group: diodes
 related:
 - light-emitting-diode-led
 parts:

@@ -12,6 +12,6 @@ parts:
 
 ## About
 
-The most common jumper wire, the male-male jumper wire makes an electrical connection between two sockets. This makes them a handy tool for connecting an Arduino to a breadboard, and making connections within the breadboard itself. 
+The most common jumper wire, the male-male jumper wire makes an electrical connection between two sockets. This makes them a handy tool for connecting an Arduino to a breadboard, and making connections within the breadboard itself.
 
 <figure class="image" style="text-align:center"> <img src="/images/parts/mm jumper.jpeg" alt="Arduino to breadboard with male-male jumper"> <figcaption style="text-align:center"><em>Arduino to breadboard with male-male jumper | Image from <a href="https://learn.adafruit.com/adafruit-arduino-lesson-2-leds/breadboard-layout">Adafruit</a> </em></figcaption></figure>

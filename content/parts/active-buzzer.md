@@ -6,7 +6,6 @@ category: output
 subcategory: sound
 signal_type: n/a
 image: 0496.jpg
-inventory_group: buzzers
 related:
 - pancake-vibration-motor
 - passive-buzzer

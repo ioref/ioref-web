@@ -5,7 +5,6 @@ category: input
 subcategory: acceleration
 signal_type: Continuous (many possible values)
 image: 0368.jpg
-inventory_group: accelerometers
 related:
 - tilt-switch
 - joystick-module

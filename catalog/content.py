@@ -26,7 +26,13 @@ from django.utils.safestring import mark_safe
 
 # Matches the old WAGTAILMARKDOWN configuration exactly.
 ALLOWED_TAGS = set(nh3.ALLOWED_TAGS) | {
-    "figure", "figcaption", "img", "video", "source", "pre", "code",
+    "figure",
+    "figcaption",
+    "img",
+    "video",
+    "source",
+    "pre",
+    "code",
 }
 ALLOWED_ATTRIBUTES = {
     **nh3.ALLOWED_ATTRIBUTES,
@@ -241,7 +247,9 @@ class Catalogue:
             if needle in haystack:
                 # Title matches first: searching "potentiometer" should not bury
                 # the potentiometer under every page that mentions one.
-                hits.append((0 if needle in part.title.lower() else 1, part.title, part))
+                hits.append(
+                    (0 if needle in part.title.lower() else 1, part.title, part)
+                )
         return [p for _, _, p in sorted(hits, key=lambda h: (h[0], h[1]))]
 
 
@@ -296,9 +304,7 @@ def _parse_sections(body, path):
                 f"{path}: unknown section heading '{current_label}'. "
                 f"Expected one of: {', '.join(LABEL_TO_ANCHOR)}"
             )
-        sections.append(
-            Section(LABEL_TO_ANCHOR[current_label], current_label, text)
-        )
+        sections.append(Section(LABEL_TO_ANCHOR[current_label], current_label, text))
 
     for line in body.splitlines():
         # Only level two, and only at the start of a line. Deeper headings
@@ -397,7 +403,9 @@ def load():
     # dropping quietly rather than 500ing the page it appears on.
     for part in parts:
         part._related = [
-            by_slug[s] for s in part.related_slugs if s in by_slug and not by_slug[s].hidden
+            by_slug[s]
+            for s in part.related_slugs
+            if s in by_slug and not by_slug[s].hidden
         ]
         for section in part.sections:
             section.render()

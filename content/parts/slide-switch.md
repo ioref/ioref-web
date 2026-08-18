@@ -5,7 +5,6 @@ category: input
 subcategory: position
 signal_type: Binary
 image: slideswitch.webp
-inventory_group: switches
 parts:
 - number: '0203'
 ---

@@ -6,7 +6,6 @@ category: output
 subcategory: movement
 signal_type: n/a
 image: 4004.jpg
-inventory_group: motors
 related:
 - potentiometer
 - servo-motor

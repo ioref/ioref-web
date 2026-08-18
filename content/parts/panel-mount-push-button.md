@@ -5,7 +5,6 @@ category: input
 subcategory: position
 signal_type: Binary
 image: pushpanel.jpg
-inventory_group: buttons
 related:
 - tactile-button-switch
 parts:

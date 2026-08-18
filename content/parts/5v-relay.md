@@ -4,7 +4,6 @@ description: Switches and isolates electrical devices
 category: power
 signal_type: n/a
 image: 0502.jpg
-inventory_group: relays
 related:
 - small-lever-microswitch
 - tactile-button-switch

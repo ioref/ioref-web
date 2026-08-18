@@ -5,7 +5,6 @@ category: input
 subcategory: orientation
 signal_type: Binary (on/off)
 image: 0272.jpg
-inventory_group: switches
 related:
 - small-lever-microswitch
 - tactile-button-switch
@@ -42,7 +41,7 @@ int LEDstate = HIGH;      // the current state of the output pin
 int reading;           // the current reading from the input pin
 int previous = LOW;    // the previous reading from the input pin
 
-// the following variables are long because the time, measured in miliseconds,
+// the following variables are long because the time, measured in milliseconds,
 // will quickly become a bigger number than can be stored in an int.
 long time = 0;         // the last time the output pin was toggled
 long debounce = 50;   // the debounce time, increase if the output flickers

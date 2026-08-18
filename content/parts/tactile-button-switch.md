@@ -5,7 +5,6 @@ category: input
 subcategory: position
 signal_type: Binary (on/off)
 image: 0356.jpg
-inventory_group: switches
 related:
 - tilt-switch
 - small-lever-microswitch
@@ -23,13 +22,13 @@ When pressed, the tactile button switches connect two points in a circuit by all
 
 <figure class="image" style="text-align:center"> <img src="/images/parts/push_button.png" alt="Tactile Button Switch Interior"> <figcaption style="text-align:center"><em>The interior wiring of a Tactile Button Switch | Image from <a href="https://learn.adafruit.com/adafruit-arduino-lesson-6-digital-inputs?view=all">Adafruit</a> </em></figcaption></figure>
 
-When wiring a breadboard, the convention is for the positive and negative power lines to lie on opposite sides of the board. Therefore, the standard set-up is to place the push-button running across the middle of the breadboard, and **connect the electrical leads to A and C, or B and D**. 
+When wiring a breadboard, the convention is for the positive and negative power lines to lie on opposite sides of the board. Therefore, the standard set-up is to place the push-button running across the middle of the breadboard, and **connect the electrical leads to A and C, or B and D**.
 
 <figure class="image" style="text-align:center"> <img src="/images/parts/valley.jpg" alt="Button wired across the valley of the breadboard"> <figcaption style="text-align:center"><em>Button wired across the valley of the breadboard</em></figcaption></figure>
 
 ## Getting started
 
-The below code and schematic sets up a circuit where pressing the button turns the LED on, and leaving the button off turns the LED off. 
+The below code and schematic sets up a circuit where pressing the button turns the LED on, and leaving the button off turns the LED off.
 
 <figure class="image" style="text-align:center"> <img src="/images/parts/button example.svg" alt="schematic for code below"> <figcaption style="text-align:center"><em>schematic for code below</em></figcaption></figure>
 
@@ -37,13 +36,13 @@ The below code and schematic sets up a circuit where pressing the button turns t
 const int LEDPIN = 5;
 const int BUTTONPIN = 11;
 
-void setup() 
+void setup()
 {
   pinMode(BUTTONPIN, INPUT);
   pinMode(LEDPIN, OUTPUT);
 }
 
-void loop() 
+void loop()
 {
   if (digitalRead(BUTTONPIN) == LOW)
   {

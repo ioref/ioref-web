@@ -5,7 +5,6 @@ category: output
 subcategory: visual
 signal_type: n/a
 image: 4001.jpg
-inventory_group: diodes
 related:
 - light-emitting-diode-led
 parts:
@@ -119,10 +118,10 @@ Here’s a sketch that will display sample text and show you how to use various 
     - using special characters
     - using characters you define yourself
     - modifying only one part of the display
-  
+
     Below is a diagrammatic map of each cursor position in a 16 x 2 (columns x rows) display.
     Each position is notated as a (column,row) coordinate.
-    
+
         (0,0) (1,0) (2,0) ... (15,0)
         (0,1) (1,1) (2,1) ... (15,1)
 

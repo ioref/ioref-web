@@ -57,7 +57,9 @@ def get_stock(part_number: str) -> dict | None:
             # the miss so a typo'd part number is not retried on every request.
             cache.set(key, {}, settings.INVENTORY_CACHE_SECONDS)
             return None
-        log.warning("Inventory returned %s for %s", exc.response.status_code, part_number)
+        log.warning(
+            "Inventory returned %s for %s", exc.response.status_code, part_number
+        )
         return None
     except httpx.HTTPError as exc:
         log.warning("Inventory unreachable for %s: %s", part_number, exc)
@@ -106,7 +108,11 @@ def get_stock_many(part_numbers: list[str]) -> dict[str, dict]:
         part = returned.get(number)
         # Cache misses as {} too, so a component listing a part number that
         # inventory has never heard of is not re-requested every pageview.
-        cache.set(f"{CACHE_PREFIX}:part:{number}", part or {}, settings.INVENTORY_CACHE_SECONDS)
+        cache.set(
+            f"{CACHE_PREFIX}:part:{number}",
+            part or {},
+            settings.INVENTORY_CACHE_SECONDS,
+        )
         if part:
             found[number] = part
 
@@ -143,8 +149,12 @@ def list_by_group(group_slug: str) -> list[dict]:
 
 
 def list_parts(
-    *, search: str = "", status: str = "", needs_restock: bool = False,
-    limit: int = 100, offset: int = 0,
+    *,
+    search: str = "",
+    status: str = "",
+    needs_restock: bool = False,
+    limit: int = 100,
+    offset: int = 0,
 ) -> dict:
     """A page of parts. Raises InventoryUnavailable rather than returning empty.
 

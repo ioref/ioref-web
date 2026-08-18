@@ -5,7 +5,6 @@ category: input
 subcategory: position
 signal_type: Binary
 image: 0350.jpg
-inventory_group: microswitches
 related:
 - tilt-switch
 - tactile-button-switch
