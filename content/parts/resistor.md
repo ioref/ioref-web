@@ -5,7 +5,7 @@ category: power
 subcategory: power
 signal_type: n/a
 image: 0001.jpg
-inventory_group: resistors
+inventory_group: resistor
 part_sets:
 - resistor
 ---
