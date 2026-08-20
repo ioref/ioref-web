@@ -140,6 +140,16 @@ every switch in the lab. A page with its own `parts:` entry must not carry a
 group; only `resistor` and `potentiometer` do, and neither has an inline part
 of its own. Getting this wrong is invisible in tests and obvious on the page.
 
+**An unknown group is silent.** Inventory answers a group it has never heard
+of with HTTP 200 and an empty result set, which is byte-identical to a group
+whose parts were all retired. When inventory re-derived its groups from part
+names, `resistors` became `resistor`, and the resistor page rendered an empty
+stock table for two days without logging anything. `list_by_group` now warns on
+an empty result, and `manage.py check_groups` is the deliberate version to run
+after any rename; `--strict` exits non-zero for a deploy gate. It is a command
+rather than a test because it needs a running inventory, and a suite that fails
+when a service is down is a suite people learn to ignore.
+
 **URL ordering in `catalog/urls.py` is load-bearing.** Category slugs sit at the
 root of the path, because that is where the legacy site had them and where the
 links inside the guide prose point. `/search/` and `/part-sets/` are therefore
@@ -223,6 +233,7 @@ several constraints that look arbitrary without it.
 uv sync
 uv run python manage.py runserver
 uv run python manage.py test
+uv run python manage.py check_groups     # after inventory renames a group
 ```
 
 No `migrate`, no `createsuperuser`, no seed command. There is no database and

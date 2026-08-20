@@ -170,3 +170,14 @@ were written against.
 ```bash
 uv run python manage.py test
 ```
+
+`check_groups` is separate, because it needs a running inventory:
+
+```bash
+uv run python manage.py check_groups
+```
+
+It verifies that every `inventory_group` in front matter still matches parts.
+Inventory answers an unknown group with an empty list rather than a 404, so a
+renamed group empties a page's stock table silently. Run it after inventory
+changes how groups are named.

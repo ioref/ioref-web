@@ -128,6 +128,13 @@ def list_by_group(group_slug: str) -> list[dict]:
 
     Returns [] when inventory is unreachable. The page still renders its
     documentation, which is the part that matters.
+
+    An empty result is logged, because inventory answers an unknown group with
+    HTTP 200 and count 0 -- exactly what a real but empty group returns. That
+    ambiguity is not hypothetical: inventory renamed the `resistors` group to
+    `resistor`, the resistor page rendered an empty stock table for two days,
+    and nothing anywhere reported it. See `manage.py check_groups` for the
+    deliberate version of this check.
     """
     if not group_slug:
         return []
@@ -144,6 +151,12 @@ def list_by_group(group_slug: str) -> list[dict]:
         return []
 
     results = data.get("results", [])
+    if not results:
+        log.warning(
+            "Group %r matched no parts. Either it was renamed in inventory and "
+            "the front matter is stale, or every part in it was retired.",
+            group_slug,
+        )
     cache.set(key, results, settings.INVENTORY_CACHE_SECONDS)
     return results
 

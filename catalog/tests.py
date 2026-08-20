@@ -7,11 +7,16 @@ are the thing most likely to contain a case nobody thought to write a fixture
 for.
 """
 
+import io
 import re
 import tempfile
 from pathlib import Path
 
+from unittest.mock import patch
+
 from django.conf import settings
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import SimpleTestCase, override_settings
 
 from catalog import content
@@ -320,3 +325,43 @@ class ViewTests(SimpleTestCase):
         /part-sets/ are one ordering mistake away from becoming categories."""
         self.assertEqual(self.client.get("/search/").status_code, 200)
         self.assertEqual(self.client.get("/part-sets/").status_code, 200)
+
+
+class CheckGroupsTests(SimpleTestCase):
+    """The guard against a slug that inventory has renamed under us.
+
+    Inventory answers an unknown group with HTTP 200 and an empty result set,
+    which reads exactly like a group whose parts were all retired. The resistor
+    page rendered an empty table for two days on the back of that.
+    """
+
+    def run_command(self, by_group, **kwargs):
+        out = io.StringIO()
+        with patch("stock.client.list_by_group", side_effect=lambda g: by_group.get(g, [])), \
+             patch("stock.client.list_parts", return_value={"results": [], "count": 0}):
+            call_command("check_groups", stdout=out, stderr=out, **kwargs)
+        return out.getvalue()
+
+    def test_reports_each_group_that_resolves(self):
+        output = self.run_command({"resistor": [{}] * 33, "potentiometers": [{}] * 26})
+        self.assertIn("all resolve", output)
+        self.assertNotIn("EMPTY", output)
+
+    def test_flags_a_group_that_matches_nothing(self):
+        output = self.run_command({"potentiometers": [{}] * 26})
+        self.assertIn("EMPTY", output)
+        self.assertIn("resistor", output)
+
+    def test_strict_exits_non_zero_so_a_deploy_can_gate_on_it(self):
+        with self.assertRaises(CommandError):
+            self.run_command({"potentiometers": [{}]}, strict=True)
+
+    def test_an_outage_is_an_error_not_a_report_of_every_group_broken(self):
+        """Reporting a down service as 'all your slugs are stale' would send
+        someone editing front matter that is perfectly correct."""
+        from stock.client import InventoryUnavailable
+
+        with patch("stock.client.list_parts", side_effect=InventoryUnavailable("refused")):
+            with self.assertRaises(CommandError) as caught:
+                call_command("check_groups", stdout=io.StringIO())
+        self.assertIn("unreachable", str(caught.exception))
