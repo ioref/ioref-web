@@ -76,9 +76,26 @@ at startup.
 
 `content/categories.yml` lists the five fixed category slugs shown on the
 home page and nothing else — no groups, no subcategories. Which groups sit
-under which category is inventory's live data, fetched by `/c/<slug>/` on
-every request; see CLAUDE.md. `content/part-sets.yml` still lists the part
-sets, unaffected by any of this.
+under which category is inventory's live data, fetched by `/category/<slug>/`
+on every request; `/c/<slug>/` is a short alias that redirects there. See
+CLAUDE.md. `content/part-sets.yml` still lists the part sets, unaffected by
+any of this.
+
+## URLs
+
+```
+/parts/<group-slug>/      a guide
+/category/<slug>/         live browse, /c/<slug>/ redirects here
+/part-sets/, /search/, /inventory/
+/<token>/                 printed cards: ioref.org/resistor, ioref.org/0496
+```
+
+The last one exists because a deck of physical reference cards already has
+URLs printed on it with no prefix at all — a bare group slug or a bare part
+number. They cannot be reprinted, so `catalog/views.resolve_legacy` resolves
+whichever one it is and redirects to the real page: a local guide slug first
+(no inventory involved), then a live part-number lookup that prefers the
+part's group's guide over a plain inventory listing if a guide exists.
 
 ## Structure
 

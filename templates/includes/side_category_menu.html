@@ -1,5 +1,7 @@
-{# The five fixed categories, none of it live: this must render even when
-   inventory is down, same as the rest of the page shell. #}
+{% comment %}
+    The five fixed categories, none of it live: this must render even when
+    inventory is down, same as the rest of the page shell.
+{% endcomment %}
 <div class="side_menu">
     <div class="category_list">
         {% for category in all_categories %}

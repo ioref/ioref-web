@@ -2,15 +2,15 @@
 
 Guides live at /parts/<group-slug>/ regardless of category, because parsing
 one never talks to inventory (see content.py). Category only exists as a
-live, request-time concept, fetched by the /c/<slug>/ browse view below --
-the site's shape does not depend on inventory being reachable at startup,
-only that one page does.
+live, request-time concept, fetched by the /category/<slug>/ browse view
+below -- the site's shape does not depend on inventory being reachable at
+startup, only that one page does.
 """
 
 from django.http import Http404
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 
-from stock.client import InventoryUnavailable, list_groups_by_category
+from stock.client import InventoryUnavailable, get_part, list_groups_by_category
 
 from .content import get_catalogue, load_categories
 
@@ -76,6 +76,59 @@ def category(request, category_slug):
         for g in sorted(groups, key=lambda g: g["name"])
     ]
     return render(request, "catalog/category_page.html", context)
+
+
+def category_alias(request, category_slug):
+    """/c/<slug>/ -> /category/<slug>/. A short alias, not a second page --
+    it never renders anything itself, so category_page.html has exactly one
+    caller. Permanent redirect: the alias is a deliberate, stable shorthand,
+    not a typo to leave open for search engines to index twice."""
+    return redirect("category", category_slug=category_slug, permanent=True)
+
+
+def resolve_legacy(request, token):
+    """The printed cards' bare URLs: ioref.org/resistor, ioref.org/0496.
+
+    They predate this site and cannot be reprinted, so whatever they name has
+    to resolve from here, at the root, with no prefix to hint which case it
+    is. Tried in order:
+
+    1. `token` is a guide's own slug (a group name, "resistor") -- resolved
+       locally, no inventory involved.
+    2. `token` is a part number inventory knows about, and that part's group
+       has a guide -- redirect to the guide, since it documents the whole
+       group this part belongs to.
+    3. `token` is a part number with no guide behind it (ungrouped, or a
+       group nobody has written up) -- redirect to its inventory page, the
+       same "just show the inventory" fallback /inventory/ itself uses for
+       stock with no guide.
+    4. None of the above: 404. Inventory being unreachable is folded into
+       this case rather than a 503 of its own -- the inventory detail page
+       one line down already renders the right outage message for a part
+       number, and a token that is not a part number was never going to
+       resolve regardless of whether inventory answers.
+    """
+    catalogue = get_catalogue()
+
+    guide = catalogue.by_slug.get(token)
+    if guide is not None:
+        return redirect(guide.url)
+
+    try:
+        part = get_part(token)
+    except InventoryUnavailable:
+        part = None
+
+    if part is None:
+        raise Http404(f"No guide, group, or part named {token}")
+
+    group = part.get("group")
+    if group:
+        guide = catalogue.by_group.get(group["slug"])
+        if guide is not None:
+            return redirect(guide.url)
+
+    return redirect("inventory_detail", part_number=token)
 
 
 def part(request, slug):

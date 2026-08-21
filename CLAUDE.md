@@ -178,8 +178,8 @@ service is down is a suite people learn to ignore.
 `/parts/<group-slug>/`, full stop -- `catalog/content.py` never calls
 inventory, so parsing a guide and building its URL cannot fail because
 inventory is down. Category only exists as a live, request-scoped concept,
-fetched by `views.category` for the `/c/<slug>/` browse page and nowhere
-else. This replaced an earlier scheme that nested guides under
+fetched by `views.category` for the `/category/<slug>/` browse page and
+nowhere else. This replaced an earlier scheme that nested guides under
 `/<category>/[<subcategory>/]<slug>/`, which needed a resolver to tell a
 subcategory from a part at the same URL depth and made the site's whole
 shape depend on `category:` front matter that inventory now owns instead.
@@ -187,13 +187,33 @@ shape depend on `category:` front matter that inventory now owns instead.
 **Category lives in inventory, live.** `Group.category` is inventory's fact,
 not a mapping file here -- see its own docstring: "the person who creates a
 group is the person who knows which category it belongs to, and making them
-edit a second repository to say so is how a taxonomy goes stale." `/c/<slug>/`
-calls `list_groups_by_category()` on every request and shows every group
-inventory returns, whether or not a guide exists for it; a guided group links
-to its guide, an unguided one links to `/inventory/?group=<slug>`. This is a
-browse view in the same sense `/inventory/` is one: `InventoryUnavailable`
-renders as a 503, not an empty category, for the same reason `list_parts()`
-raises rather than returning `[]`.
+edit a second repository to say so is how a taxonomy goes stale."
+`/category/<slug>/` calls `list_groups_by_category()` on every request and
+shows every group inventory returns, whether or not a guide exists for it; a
+guided group links to its guide, an unguided one links to
+`/inventory/?group=<slug>`. This is a browse view in the same sense
+`/inventory/` is one: `InventoryUnavailable` renders as a 503, not an empty
+category, for the same reason `list_parts()` raises rather than returning
+`[]`.
+
+**`/c/<slug>/` is a redirect, not a second view.** `category_page.html` has
+exactly one caller. `category_alias` rewrites the path and hands off; it does
+not know or care whether the slug is real, because `category()` already
+handles that one hop later. A 301: the shorthand is deliberate and stable,
+not a typo search engines should index twice.
+
+**The printed cards resolve at the root, ahead of everything else.** They
+predate this rebuild and carry bare URLs with no prefix -- `ioref.org/resistor`
+(a group), `ioref.org/0496` (a part number) -- so `<slug:token>/` in
+`catalog/urls.py` catches anything not claimed by a named route above it and
+`views.resolve_legacy` works out which case it is: a local guide slug first
+(free, no inventory involved), then a live part-number lookup, preferring the
+part's group's guide over `/inventory/<number>/` if one exists. Ordering in
+`urls.py` is what makes this safe -- see the note there. `stock/views.py`'s
+`_guide_for` is the same resolution, reused: it used to only check a guide's
+inline `parts:` list, which went from covering every guide to covering two of
+them the day guides became group-keyed, and nothing caught it. Both places
+now check the live group first.
 
 **The five categories themselves are hardcoded, not fetched.** `content/
 categories.yml` lists `input`, `output`, `power`, `connector`, `controller`
@@ -238,7 +258,9 @@ text is emitted into the page as literal content. It raises no error and no
 warning, so it is caught only by looking at the rendered output. Use
 `{% comment %} … {% endcomment %}` for anything longer than one line. Every
 comment in this repository longer than a line uses the tag form for this
-reason.
+reason — including one that had to be found and fixed after shipping,
+in `side_category_menu.html` during the /category/ rework below, caught only
+by loading the page and seeing the comment text rendered on it.
 
 ## Design language
 

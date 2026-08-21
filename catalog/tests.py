@@ -286,29 +286,30 @@ class ViewTests(SimpleTestCase):
 
 @patch("catalog.views.list_groups_by_category")
 class CategoryViewTests(SimpleTestCase):
-    """/c/<slug>/ is live: it never reads content/ to decide what belongs
-    under a category, only to decide whether a group already has a guide."""
+    """/category/<slug>/ is live: it never reads content/ to decide what
+    belongs under a category, only to decide whether a group already has a
+    guide."""
 
     def test_unknown_category_404s_without_touching_inventory(self, mock_list):
-        response = self.client.get("/c/nachos/")
+        response = self.client.get("/category/nachos/")
         self.assertEqual(response.status_code, 404)
         mock_list.assert_not_called()
 
     def test_guided_group_links_to_its_guide(self, mock_list):
         mock_list.return_value = [{"slug": "resistor", "name": "Resistors", "part_count": 33}]
-        response = self.client.get("/c/power/")
+        response = self.client.get("/category/power/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "/parts/resistor/")
 
     def test_unguided_group_links_to_inventory(self, mock_list):
         mock_list.return_value = [{"slug": "fasteners", "name": "Fasteners", "part_count": 190}]
-        response = self.client.get("/c/power/")
+        response = self.client.get("/category/power/")
         self.assertContains(response, "/inventory/?group=fasteners")
         self.assertContains(response, "no guide yet")
 
     def test_empty_category_is_not_an_outage(self, mock_list):
         mock_list.return_value = []
-        response = self.client.get("/c/power/")
+        response = self.client.get("/category/power/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "No groups are filed")
 
@@ -317,9 +318,75 @@ class CategoryViewTests(SimpleTestCase):
         nothing in it -- the /inventory/ browse view draws exactly this line
         already; this page has to draw it too."""
         mock_list.side_effect = InventoryUnavailable("refused")
-        response = self.client.get("/c/power/")
+        response = self.client.get("/category/power/")
         self.assertEqual(response.status_code, 503)
         self.assertContains(response, "unreachable", status_code=503)
+
+
+class CategoryAliasTests(SimpleTestCase):
+    """/c/<slug>/ redirects rather than rendering -- category_page.html must
+    have exactly one caller, or the two would drift."""
+
+    def test_redirects_to_the_canonical_path(self):
+        response = self.client.get("/c/power/")
+        self.assertRedirects(
+            response, "/category/power/", status_code=301, fetch_redirect_response=False
+        )
+
+    def test_does_not_validate_the_slug_itself(self):
+        """Validation is category()'s job; the alias only rewrites the path,
+        so an unknown slug still redirects and 404s one hop later, not here."""
+        response = self.client.get("/c/nachos/")
+        self.assertEqual(response.status_code, 301)
+
+
+class ResolveLegacyTests(SimpleTestCase):
+    """The printed cards: ioref.org/<group-slug> and ioref.org/<part-number>,
+    both bare, both predating this site, neither reprintable."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.catalogue = content.reload()
+
+    def test_a_guide_slug_resolves_without_touching_inventory(self):
+        with patch("catalog.views.get_part") as mock_get:
+            response = self.client.get("/resistor/")
+            mock_get.assert_not_called()
+        self.assertRedirects(response, "/parts/resistor/", fetch_redirect_response=False)
+
+    @patch("catalog.views.get_part")
+    def test_a_part_number_in_a_guided_group_redirects_to_that_guide(self, mock_get):
+        mock_get.return_value = {"part_number": "0001", "group": {"slug": "resistor"}}
+        response = self.client.get("/0001/")
+        self.assertRedirects(response, "/parts/resistor/", fetch_redirect_response=False)
+
+    @patch("catalog.views.get_part")
+    def test_a_part_number_with_no_guide_falls_back_to_inventory(self, mock_get):
+        """The same "just show the inventory" fallback /inventory/ itself
+        uses when a part has stock but no write-up."""
+        mock_get.return_value = {"part_number": "0046", "group": {"slug": "fasteners"}}
+        response = self.client.get("/0046/")
+        self.assertRedirects(response, "/inventory/0046/", fetch_redirect_response=False)
+
+    @patch("catalog.views.get_part")
+    def test_an_ungrouped_part_falls_back_to_inventory(self, mock_get):
+        mock_get.return_value = {"part_number": "0574", "group": None}
+        response = self.client.get("/0574/")
+        self.assertRedirects(response, "/inventory/0574/", fetch_redirect_response=False)
+
+    @patch("catalog.views.get_part")
+    def test_unknown_token_404s(self, mock_get):
+        mock_get.return_value = None
+        self.assertEqual(self.client.get("/totallybogus/").status_code, 404)
+
+    @patch("catalog.views.get_part")
+    def test_outage_on_an_unrecognised_token_is_404_not_503(self, mock_get):
+        """A token that is not a local guide slug was never going to resolve
+        without inventory, so there is nothing an outage-specific page would
+        add -- unlike /category/<slug>/, which has real content to withhold."""
+        mock_get.side_effect = InventoryUnavailable("refused")
+        self.assertEqual(self.client.get("/totallybogus/").status_code, 404)
 
 
 class CheckGroupsTests(SimpleTestCase):

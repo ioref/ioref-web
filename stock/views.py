@@ -17,33 +17,33 @@ from .client import InventoryUnavailable, get_part, list_parts
 PAGE_SIZE = 60
 
 
-def _guide_links(part_numbers):
-    """Map part numbers to their maker card URL, where one exists.
+def _guide_for(part, catalogue, by_number):
+    """The guide that documents one part dict from the inventory API.
 
-    Inventory holds many parts with no guide (consumables, fasteners), so this
-    is a left join, not an assumption.
+    Group first: most guides are group-driven now, and the part dict already
+    carries its group (list_parts() and get_part() both embed it), so this
+    costs nothing extra -- no second API call to find out. Falls back to a
+    guide that lists the number by hand, for the couple of parts inventory
+    has not grouped yet.
     """
-    catalogue = get_catalogue()
-    wanted = set(part_numbers)
-    # Several part numbers can share one guide: 33 capacitors, one explanation.
-    return {
-        number: part.url
-        for part in catalogue.parts
-        for number in part.part_numbers
-        if number in wanted
-    }
+    group = part.get("group")
+    if group and group["slug"] in catalogue.by_group:
+        return catalogue.by_group[group["slug"]]
+    return by_number.get(part["part_number"])
 
 
 def _attach_guides(parts):
-    """Annotate API dicts with their guide URL.
+    """Annotate API dicts with their guide URL, in place.
 
     Done here rather than in the template because Django templates cannot
     subscript a dict by a variable key without a custom filter, and one view
     line is cheaper to maintain than a templatetags module.
     """
-    guides = _guide_links([p["part_number"] for p in parts])
+    catalogue = get_catalogue()
+    by_number = {n: p for p in catalogue.parts for n in p.part_numbers}
     for part in parts:
-        part["guide_url"] = guides.get(part["part_number"])
+        guide = _guide_for(part, catalogue, by_number)
+        part["guide_url"] = guide.url if guide else None
     return parts
 
 
@@ -105,7 +105,11 @@ def inventory_detail(request, part_number):
     if part is None:
         return render(request, "stock/inventory_detail.html", context, status=404)
 
+    catalogue = get_catalogue()
+    by_number = {n: p for p in catalogue.parts for n in p.part_numbers}
+    guide = _guide_for(part, catalogue, by_number)
+
     context["part"] = part
     context["page_title"] = part.get("short_name") or part_number
-    context["guide_url"] = _guide_links([part_number]).get(part_number)
+    context["guide_url"] = guide.url if guide else None
     return render(request, "stock/inventory_detail.html", context)
