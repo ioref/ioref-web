@@ -57,11 +57,15 @@ pieces this application does not have:
   `deploy` user's systemd instance ioref-inventory already uses.
 
 No persistent volume, because there is nothing to persist: the guide content
-is committed to the repository and baked into the image at build time by
-`collectstatic`. A deploy that replaces the container replaces the content;
-there is no data migration step and never will be one, short of adding a
-database, which is a design decision this application deliberately does not
-make (see the repository's own `config/settings/base.py`).
+is committed to the repository and baked into the image at build time by the
+Dockerfile's `COPY . .`, the same instruction that puts the application code
+there — `collectstatic` is not involved and must not be: it handles `static/`
+(CSS, JS, favicons) only, and `public/`, where the guide images and videos
+live, is served by WhiteNoise straight from the source tree. A deploy that
+replaces the container replaces the content; there is no data migration step
+and never will be one, short of adding a database, which is a design decision
+this application deliberately does not make (see the repository's own
+`config/settings/base.py`).
 
 ---
 
