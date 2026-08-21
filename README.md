@@ -174,6 +174,21 @@ card where one exists. Read-only: the API key is read-scoped.
 npx sass static/css/main.scss static/css/main.css
 ```
 
+## Favicon
+
+`static/favicon.svg` is the only favicon file meant to be edited by hand.
+`favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png` and
+`apple-touch-icon.png` are all derived from it — commit them anyway, since
+whitenoise serves `static/` as-is and there is no build step at request time
+to generate them from. To resync after editing the SVG:
+
+```bash
+uv run python tools/generate_favicons.py
+```
+
+Needs Inkscape on `PATH` to rasterise the SVG; Pillow (a dev dependency,
+not a production one) does the resizing and `.ico` packing from there.
+
 The header search is a plain GET, matched as a substring across titles and
 prose with title hits ranked first. The catalogue fits in memory, so there is
 no index. The original ran a live autocomplete against Directus via jQuery,
