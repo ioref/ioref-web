@@ -1,8 +1,6 @@
 ---
 title: Passive Infrared Sensor
 description: Detects motion (of bodies that emit infrared radiation, for example, humans)
-category: input
-subcategory: movement
 signal_type: Binary
 image: IRmotion.jpg
 parts:

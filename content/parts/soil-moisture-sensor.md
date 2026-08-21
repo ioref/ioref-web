@@ -1,7 +1,6 @@
 ---
 title: soil moisture sensor
 description: soil moisture sensor
-category: input
 signal_type: Continuous
 image: moisturesensor.jpeg
 parts:

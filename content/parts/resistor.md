@@ -1,11 +1,9 @@
 ---
 title: Resistor
 description: A component that limits or regulates the flow of current in a circuit.
-category: power
-subcategory: power
 signal_type: n/a
 image: 0001.jpg
-inventory_group: resistor
+group: resistor
 part_sets:
 - resistor
 ---

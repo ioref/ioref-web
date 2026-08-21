@@ -1,40 +1,18 @@
+# The five macro categories shown on the home page. Hardcoded here rather
+# than fetched from inventory: main.css colours boxes by these exact slugs,
+# and the home page must render even when inventory is unreachable.
+#
+# Which groups sit under each category at browse time (/c/<slug>/) is
+# inventory's live data (Group.category), not this file. This file only
+# says the five exist and what to call them.
 categories:
+- slug: input
+  title: Input
+- slug: output
+  title: Output
+- slug: power
+  title: Power
 - slug: connector
   title: Connector
 - slug: controller
   title: Controller
-- slug: input
-  title: Input
-  subcategories:
-  - slug: acceleration
-    title: Acceleration
-  - slug: light
-    title: Light
-  - slug: movement
-    title: Movement
-  - slug: orientation
-    title: Orientation
-  - slug: position
-    title: Position
-  - slug: proximity
-    title: Proximity
-  - slug: temperature
-    title: Temperature
-- slug: output
-  title: Output
-  subcategories:
-  - slug: light
-    title: Light
-  - slug: movement
-    title: Movement
-  - slug: power
-    title: Power
-  - slug: sound
-    title: Sound
-  - slug: visual
-    title: Visual
-- slug: power
-  title: Power
-  subcategories:
-  - slug: power
-    title: Power
