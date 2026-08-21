@@ -1,18 +1,19 @@
 """The guide content, read from markdown files rather than a database.
 
-The whole catalogue is a few dozen files and about 100 KB of prose, so it is
-parsed
-once and held in memory. There is no database behind any of this: editing the
-site means editing a file and committing it.
+The whole catalogue is 40 files and well under 100 KB of prose, so it is
+parsed once and held in memory. There is no database behind any of this:
+editing the site means editing a file and committing it.
 
-Rendering happens at load time, not per request. Markdown for the whole
-catalogue costs a fifth of a second once at startup, and paying it per pageview
-for content that only changes on deploy would be waste.
+A guide is keyed by inventory group, not by part number. "What is a
+resistor" is one page that draws its stock table live from inventory's
+`resistor` group, whatever values happen to be stocked -- not one page per
+value. See CLAUDE.md for how that came about.
 
-The sanitiser allowances are the ones that were in WAGTAILMARKDOWN before, and
-they are not decorative: 59 diagrams in the prose are inline <figure> HTML and
-22 parts carry fenced code blocks with language hints. Narrowing the allowed
-tags silently deletes them, and only on the pages that use them.
+Category is deliberately absent from this module. It used to be local
+front matter; it is now a fact inventory holds about the group
+(`Group.category`), fetched live by catalog/views.py only where it is
+needed -- the /c/<slug>/ browse page. Parsing a guide file here never talks
+to inventory, so the guides render even when it is down.
 """
 
 import threading
@@ -25,15 +26,9 @@ import yaml
 from django.conf import settings
 from django.utils.safestring import mark_safe
 
-# Matches the old WAGTAILMARKDOWN configuration exactly.
+# Matches the old WAGTAILMARKDOWN configuration this replaced.
 ALLOWED_TAGS = set(nh3.ALLOWED_TAGS) | {
-    "figure",
-    "figcaption",
-    "img",
-    "video",
-    "source",
-    "pre",
-    "code",
+    "figure", "figcaption", "img", "video", "source", "pre", "code",
 }
 ALLOWED_ATTRIBUTES = {
     **nh3.ALLOWED_ATTRIBUTES,
@@ -99,17 +94,16 @@ class Section:
         self._html = render_markdown(self.body)
 
 
-# eq=False throughout, and repr=False on every back-reference.
+# eq=False, and repr=False on the back-reference.
 #
-# These objects form cycles: a Part points at its Category, whose `parts` list
-# points back. The generated __repr__ and __eq__ both walk fields recursively,
-# so either one follows the cycle until the process dies. That is not
-# theoretical -- an unrelated exception under DEBUG=True made Django render a
-# traceback page, which reprs local variables, which exhausted memory and got
-# the process OOM-killed with no traceback to explain it.
-#
-# Identity comparison is also what is wanted: there is exactly one object per
-# slug in a loaded catalogue, and eq=False restores hashability with it.
+# Part.related_parts can point back at pages that point back at it, forming a
+# cycle. The generated __repr__ and __eq__ both walk fields recursively, so
+# either one follows the cycle until the process dies -- not theoretical, an
+# unrelated exception under DEBUG=True once made Django repr a view's local
+# variables while rendering a traceback page, and the process was OOM-killed
+# with no traceback to explain it. eq=False also restores hashability: there
+# is exactly one object per slug in a loaded catalogue, so identity is what
+# equality should mean anyway.
 @dataclass(eq=False)
 class PartSet:
     slug: str
@@ -126,67 +120,31 @@ class PartSet:
     def image_url(self):
         return f"/images/parts/{self.image}" if self.image else ""
 
-    # Templates were written against Wagtail pages and compare identity by id.
     @property
     def id(self):
         return self.slug
-
-
-@dataclass(eq=False)
-class Subcategory:
-    slug: str
-    title: str
-    category: "Category" = field(default=None, repr=False)
-    parts: list = field(default_factory=list, repr=False)
-
-    @property
-    def url(self):
-        return f"/{self.category.slug}/{self.slug}/"
-
-    @property
-    def id(self):
-        return self.slug
-
-    @property
-    def visible_parts(self):
-        return [p for p in self.parts if not p.hidden]
-
-
-@dataclass(eq=False)
-class Category:
-    slug: str
-    title: str
-    subcategories: list = field(default_factory=list, repr=False)
-    parts: list = field(default_factory=list, repr=False)
-
-    @property
-    def url(self):
-        return f"/{self.slug}/"
-
-    @property
-    def id(self):
-        return self.slug
-
-    @property
-    def loose_parts(self):
-        """Parts hung straight off the category, with no subcategory.
-
-        The legacy site rendered these in an unlabelled block above the rest.
-        """
-        return [p for p in self.parts if p.subcategory is None and not p.hidden]
 
 
 @dataclass(eq=False)
 class Part:
+    """A guide, keyed by the inventory group it documents.
+
+    `group` names that group and drives the page's stock table (see
+    catalog/views.py:_variants and stock/client.py:list_by_group). It is
+    optional: `soil-moisture-sensor` and `passive-infrared-sensor` document
+    parts inventory has not yet put in a group, and fall back to `stocked`,
+    an explicit list of part numbers in front matter -- the mechanism every
+    guide used before groups existed. A page needs one or the other, or it
+    has nothing to show a stock table for.
+    """
+
     slug: str
     title: str
     description: str = ""
     signal_type: str = ""
     image: str = ""
-    inventory_group: str = ""
+    group: str = ""
     hidden: bool = False
-    category: Category = field(default=None, repr=False)
-    subcategory: Subcategory = field(default=None, repr=False)
     part_sets: list = field(default_factory=list, repr=False)
     related_slugs: list = field(default_factory=list, repr=False)
     stocked: list = field(default_factory=list, repr=False)
@@ -194,9 +152,7 @@ class Part:
 
     @property
     def url(self):
-        if self.subcategory is not None:
-            return f"/{self.category.slug}/{self.subcategory.slug}/{self.slug}/"
-        return f"/{self.category.slug}/{self.slug}/"
+        return f"/parts/{self.slug}/"
 
     @property
     def id(self):
@@ -216,24 +172,21 @@ class Part:
 
 
 class Catalogue:
-    """Everything, indexed the handful of ways the views ask for it."""
+    """Every guide, indexed the handful of ways the views ask for it."""
 
-    def __init__(self, parts, categories, part_sets):
+    def __init__(self, parts, part_sets):
         self.parts = parts
-        self.categories = categories
         self.part_sets = part_sets
         self.by_slug = {p.slug: p for p in parts}
-        self.categories_by_slug = {c.slug: c for c in categories}
+        self.by_group = {p.group: p for p in parts if p.group}
         self.part_sets_by_slug = {s.slug: s for s in part_sets}
-        self.subcategories_by_key = {
-            (c.slug, s.slug): s for c in categories for s in c.subcategories
-        }
 
     def search(self, query):
         """Substring match over title and prose.
 
-        The catalogue fits in memory many times over, so this is a loop rather
-        than an index. Wagtail's database backend was not doing anything cleverer.
+        The whole catalogue fits in memory many times over, so this is a loop
+        rather than an index. Wagtail's database backend was not doing
+        anything cleverer.
         """
         needle = (query or "").strip().lower()
         if not needle:
@@ -248,10 +201,28 @@ class Catalogue:
             if needle in haystack:
                 # Title matches first: searching "potentiometer" should not bury
                 # the potentiometer under every page that mentions one.
-                hits.append(
-                    (0 if needle in part.title.lower() else 1, part.title, part)
-                )
+                hits.append((0 if needle in part.title.lower() else 1, part.title, part))
         return [p for _, _, p in sorted(hits, key=lambda h: (h[0], h[1]))]
+
+
+@dataclass(eq=False)
+class Category:
+    """One of the five fixed macro categories shown on the home page.
+
+    Unlike everything else in this module, these are not read from inventory.
+    They are the five slugs `main.css` colours by, hardcoded here on purpose:
+    the home page must render even when inventory is unreachable, and the set
+    of five essentially never changes. What varies -- which groups sit under
+    Power today -- is inventory's live data, fetched only when a /c/<slug>/
+    page is actually visited. See catalog/views.py:category.
+    """
+
+    slug: str
+    title: str
+
+    @property
+    def url(self):
+        return f"/c/{self.slug}/"
 
 
 _lock = threading.Lock()
@@ -277,6 +248,13 @@ def reload():
     with _lock:
         _catalogue = None
     return get_catalogue()
+
+
+def load_categories():
+    """The five home-page categories, in file order."""
+    root = content_dir()
+    data = yaml.safe_load((root / "categories.yml").read_text(encoding="utf-8"))
+    return [Category(slug=c["slug"], title=c["title"]) for c in data["categories"]]
 
 
 def _split_frontmatter(text, path):
@@ -305,7 +283,9 @@ def _parse_sections(body, path):
                 f"{path}: unknown section heading '{current_label}'. "
                 f"Expected one of: {', '.join(LABEL_TO_ANCHOR)}"
             )
-        sections.append(Section(LABEL_TO_ANCHOR[current_label], current_label, text))
+        sections.append(
+            Section(LABEL_TO_ANCHOR[current_label], current_label, text)
+        )
 
     for line in body.splitlines():
         # Only level two, and only at the start of a line. Deeper headings
@@ -325,17 +305,6 @@ def _parse_sections(body, path):
 def load():
     root = content_dir()
 
-    taxonomy = yaml.safe_load((root / "categories.yml").read_text(encoding="utf-8"))
-    categories = []
-    for entry in taxonomy["categories"]:
-        category = Category(slug=entry["slug"], title=entry["title"])
-        for sub in entry.get("subcategories", []):
-            category.subcategories.append(
-                Subcategory(slug=sub["slug"], title=sub["title"], category=category)
-            )
-        categories.append(category)
-    by_cat = {c.slug: c for c in categories}
-
     set_data = yaml.safe_load((root / "part-sets.yml").read_text(encoding="utf-8"))
     part_sets = [
         PartSet(
@@ -349,26 +318,26 @@ def load():
     by_set = {s.slug: s for s in part_sets}
 
     parts = []
+    seen_groups = {}
     for path in sorted((root / "parts").glob("*.md")):
         front, body = _split_frontmatter(path.read_text(encoding="utf-8"), path)
 
-        category = by_cat.get(front.get("category", ""))
-        if category is None:
+        group = front.get("group", "")
+        stocked = [dict(p) for p in front.get("parts", [])]
+        if not group and not stocked:
             raise ValueError(
-                f"{path}: category '{front.get('category')}' is not in categories.yml"
+                f"{path}: no group and no parts: -- nothing to show a stock "
+                "table for. Give it a group, or list its part numbers by hand."
             )
-
-        subcategory = None
-        if front.get("subcategory"):
-            key = (category.slug, front["subcategory"])
-            subcategory = {
-                (c.slug, s.slug): s for c in categories for s in c.subcategories
-            }.get(key)
-            if subcategory is None:
-                raise ValueError(
-                    f"{path}: subcategory '{front['subcategory']}' is not under "
-                    f"category '{category.slug}' in categories.yml"
-                )
+        if group in seen_groups:
+            raise ValueError(
+                f"{path}: group '{group}' is already documented by "
+                f"{seen_groups[group]}.md. A guide covers a whole group; two "
+                "files for one group is the bug check_groups exists to avoid "
+                "at the inventory end, not something a second file should hide."
+            )
+        if group:
+            seen_groups[group] = path.stem
 
         part = Part(
             slug=path.stem,
@@ -376,12 +345,10 @@ def load():
             description=front.get("description", ""),
             signal_type=front.get("signal_type", ""),
             image=front.get("image", ""),
-            inventory_group=front.get("inventory_group", ""),
+            group=group,
             hidden=bool(front.get("hidden", False)),
-            category=category,
-            subcategory=subcategory,
             related_slugs=list(front.get("related", [])),
-            stocked=[dict(p) for p in front.get("parts", [])],
+            stocked=stocked,
             sections=_parse_sections(body, path),
         )
 
@@ -392,31 +359,22 @@ def load():
             part.part_sets.append(part_set)
             part_set.parts.append(part)
 
-        category.parts.append(part)
-        if subcategory is not None:
-            subcategory.parts.append(part)
         parts.append(part)
 
     by_slug = {p.slug: p for p in parts}
 
-    # Second pass: relations point at other parts, so they need every part read
-    # before they can be resolved. A dangling slug is an editing mistake worth
-    # dropping quietly rather than 500ing the page it appears on.
+    # Second pass: relations point at other parts, so they need every part
+    # read before they can be resolved. A dangling slug is an editing mistake
+    # worth dropping quietly rather than 500ing the page it appears on.
     for part in parts:
         part._related = [
-            by_slug[s]
-            for s in part.related_slugs
-            if s in by_slug and not by_slug[s].hidden
+            by_slug[s] for s in part.related_slugs if s in by_slug and not by_slug[s].hidden
         ]
         for section in part.sections:
             section.render()
 
-    for category in categories:
-        category.parts.sort(key=lambda p: p.title)
-        for sub in category.subcategories:
-            sub.parts.sort(key=lambda p: p.title)
     for part_set in part_sets:
         part_set.parts.sort(key=lambda p: p.title)
     parts.sort(key=lambda p: p.title)
 
-    return Catalogue(parts, categories, part_sets)
+    return Catalogue(parts, part_sets)

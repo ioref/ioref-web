@@ -17,7 +17,7 @@ from catalog.content import get_catalogue
 
 
 class Command(BaseCommand):
-    help = "Check every inventory_group in content/ against a running inventory."
+    help = "Check every group in content/ against a running inventory."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -37,23 +37,23 @@ class Command(BaseCommand):
         except InventoryUnavailable as exc:
             raise CommandError(f"Inventory is unreachable, so nothing can be checked: {exc}")
 
-        pages = [p for p in get_catalogue().parts if p.inventory_group]
+        pages = [p for p in get_catalogue().parts if p.group]
         if not pages:
-            self.stdout.write("No page declares an inventory_group.")
+            self.stdout.write("No page declares a group.")
             return
 
         missing = []
         for page in sorted(pages, key=lambda p: p.slug):
-            parts = list_by_group(page.inventory_group)
+            parts = list_by_group(page.group)
             if parts:
                 self.stdout.write(
-                    f"  ok       {page.slug:28} {page.inventory_group:24} {len(parts)} parts"
+                    f"  ok       {page.slug:28} {page.group:24} {len(parts)} parts"
                 )
             else:
                 missing.append(page)
                 self.stdout.write(
                     self.style.ERROR(
-                        f"  EMPTY    {page.slug:28} {page.inventory_group:24} 0 parts"
+                        f"  EMPTY    {page.slug:28} {page.group:24} 0 parts"
                     )
                 )
 

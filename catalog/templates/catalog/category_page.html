@@ -1,5 +1,9 @@
 {% extends "base.html" %}
-{# Ported from maker-cards views/categories/category.hbs. #}
+{% comment %}
+    Live: every group inventory files under this category, fetched at request
+    time. Not built from content/, so an undocumented group still appears --
+    it links to /inventory/ instead of a guide.
+{% endcomment %}
 
 {% block content %}
 <div class="content_with_side_menu">
@@ -8,42 +12,34 @@
     <div class="content category_content">
         {% include "includes/page_title.html" with title=page.title %}
 
-        {% if subcategories %}
-            <div class="subcategory_jumper">
-                <div class="title">Jump to subcategory:</div>
-                {% for sub in subcategories %}
-                    <div class="subcategory"><a href="#{{ sub.slug }}">{{ sub.title }}</a></div>
-                {% endfor %}
+        {% if unavailable %}
+            <p class="stock_unknown">
+                Inventory is unreachable, so groups cannot be listed for this
+                category right now. Try again shortly.
+            </p>
+        {% elif not groups %}
+            <p>No groups are filed under {{ page.title }} yet.</p>
+        {% else %}
+            <div class="subcategory_tiles">
+                <div class="subcategory">
+                    <div class="part_tiles">
+                        {% for group in groups %}
+                            <a class="part_tile noselect" href="{{ group.url }}">
+                                <div class="part_img_container">
+                                    {% if group.guide and group.guide.image %}
+                                        <img class="img_part_tile" src="{{ group.guide.image_url }}" alt="{{ group.guide.title }}">
+                                    {% endif %}
+                                </div>
+                                <div class="part_name">{{ group.guide.title|default:group.name }}</div>
+                                {% if not group.guide %}
+                                    <div class="variant_note">{{ group.part_count }} in stock, no guide yet</div>
+                                {% endif %}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
-            <hr/>
         {% endif %}
-
-        <div class="subcategory_tiles">
-            {% if loose_parts %}
-                {% comment %}
-                    Parts hung straight off the category. Rendered unlabelled
-                    above the subcategories, as the legacy site did.
-                {% endcomment %}
-                <div class="subcategory">
-                    <div class="part_tiles">
-                        {% for part in loose_parts %}
-                            {% include "includes/part_tile.html" %}
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endif %}
-
-            {% for sub in subcategories %}
-                <div class="subcategory">
-                    <div id="{{ sub.slug }}" class="title"><a href="{{ sub.url }}">{{ sub.title }}</a></div>
-                    <div class="part_tiles">
-                        {% for part in sub.visible_parts %}
-                            {% include "includes/part_tile.html" %}
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
     </div>
 </div>
 {% endblock %}

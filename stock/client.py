@@ -190,6 +190,45 @@ def list_parts(
         raise InventoryUnavailable from exc
 
 
+def list_categories() -> list[dict]:
+    """Every category a group can belong to: Input, Output, Power...
+
+    Raises InventoryUnavailable rather than returning [], matching list_parts():
+    this drives the /c/<slug>/ browse page, and an empty list here would be
+    indistinguishable from "no categories exist" rather than "inventory is down".
+
+    Not cached: this is a handful of rows, requested once per category-page
+    view, and freshness matters more than shaving one request off a page that
+    is already doing a live lookup for its group listing.
+    """
+    try:
+        data = _get("/api/v1/categories/", {"limit": 100})
+    except httpx.HTTPError as exc:
+        log.warning("Category list failed: %s", exc)
+        raise InventoryUnavailable from exc
+    return data.get("results", [])
+
+
+def list_groups_by_category(category_slug: str) -> list[dict]:
+    """Every group inventory files under a category, guided or not.
+
+    This is what the /c/<slug>/ page is built from. A group with no guide in
+    content/ still appears, linking to /inventory/?group=<slug> instead of a
+    guide page -- category is inventory's fact, having a guide is ours, and
+    the two lists are not the same list.
+
+    Raises InventoryUnavailable rather than returning []: this is a browse
+    view in the same sense /inventory/ is, and rendering an outage as "this
+    category is empty" would be worse than an error page.
+    """
+    try:
+        data = _get("/api/v1/groups/", {"category": category_slug, "limit": 200})
+    except httpx.HTTPError as exc:
+        log.warning("Group-by-category lookup failed for %s: %s", category_slug, exc)
+        raise InventoryUnavailable from exc
+    return data.get("results", [])
+
+
 def get_part(part_number: str) -> dict | None:
     try:
         return _get(f"/api/v1/parts/{part_number}/")

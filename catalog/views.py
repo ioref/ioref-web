@@ -1,31 +1,23 @@
 """Guide pages, rendered from the markdown files in content/.
 
-These replace Wagtail's page serving. The URLs are unchanged from what the
-page tree produced, because they are the public URLs of a live site and the
-templates are the same ones, so a reader should not be able to tell.
-
-There is no /images/parts/ view any more. Those files sit at that path under
-static/, so whitenoise answers them directly and the MediaAlias table that
-used to translate them is gone.
+Guides live at /parts/<group-slug>/ regardless of category, because parsing
+one never talks to inventory (see content.py). Category only exists as a
+live, request-time concept, fetched by the /c/<slug>/ browse view below --
+the site's shape does not depend on inventory being reachable at startup,
+only that one page does.
 """
 
 from django.http import Http404
 from django.shortcuts import render
 
-from .content import get_catalogue
+from stock.client import InventoryUnavailable, list_groups_by_category
 
-
-def _sidebar(catalogue, active_category):
-    """The category rail shared by category, subcategory and part pages."""
-    return {
-        "all_categories": catalogue.categories,
-        "active_category": active_category,
-    }
+from .content import get_catalogue, load_categories
 
 
 def home(request):
-    catalogue = get_catalogue()
-    by_slug = catalogue.categories_by_slug
+    categories = load_categories()
+    by_slug = {c.slug: c for c in categories}
 
     # maker-cards laid these out two-then-three, and the widths in main.css
     # assume that split. Driven from slugs rather than file order so that
@@ -44,68 +36,53 @@ def home(request):
 
 
 def category(request, category_slug):
-    catalogue = get_catalogue()
-    page = catalogue.categories_by_slug.get(category_slug)
+    """Every group inventory files under this category, live.
+
+    Not built from content/: a group with no guide still belongs here, so a
+    purchasing question ("what's under Power") is answerable without anyone
+    having written a word about half of it. Guided groups link to their guide;
+    the rest link to /inventory/?group=<slug>, which already knows how to list
+    a group's stock.
+    """
+    categories = load_categories()
+    page = next((c for c in categories if c.slug == category_slug), None)
     if page is None:
         raise Http404(f"No category {category_slug}")
 
-    return render(
-        request,
-        "catalog/category_page.html",
-        {
-            "page": page,
-            "subcategories": page.subcategories,
-            "loose_parts": page.loose_parts,
-            **_sidebar(catalogue, page),
-        },
-    )
+    context = {
+        "page": page,
+        "all_categories": categories,
+        "active_category_slug": category_slug,
+    }
 
-
-def category_child(request, category_slug, slug):
-    """Two path segments below the root, which is ambiguous.
-
-    /input/light/ is a subcategory and /connector/2096-female-female-jumper-wire/
-    is a part hung straight off its category. Wagtail told them apart by walking
-    the page tree; without one, the subcategory names are what decide, so they
-    are checked first and a part is the fallback.
-    """
     catalogue = get_catalogue()
-    sub = catalogue.subcategories_by_key.get((category_slug, slug))
-    if sub is not None:
-        return _render_subcategory(request, catalogue, sub)
-    return _render_part(request, catalogue, slug, category_slug, None)
+    try:
+        groups = list_groups_by_category(category_slug)
+    except InventoryUnavailable:
+        context["unavailable"] = True
+        return render(request, "catalog/category_page.html", context, status=503)
 
-
-def part_in_subcategory(request, category_slug, subcategory_slug, slug):
-    return _render_part(request, get_catalogue(), slug, category_slug, subcategory_slug)
-
-
-def _render_subcategory(request, catalogue, page):
-    return render(
-        request,
-        "catalog/subcategory_page.html",
+    context["unavailable"] = False
+    context["groups"] = [
         {
-            "page": page,
-            "parts": page.visible_parts,
-            **_sidebar(catalogue, page.category),
-        },
-    )
+            "slug": g["slug"],
+            "name": g["name"],
+            "part_count": g.get("part_count", 0),
+            "guide": catalogue.by_group.get(g["slug"]),
+            "url": (catalogue.by_group[g["slug"]].url
+                    if g["slug"] in catalogue.by_group
+                    else f"/inventory/?group={g['slug']}"),
+        }
+        for g in sorted(groups, key=lambda g: g["name"])
+    ]
+    return render(request, "catalog/category_page.html", context)
 
 
-def _render_part(request, catalogue, slug, category_slug, subcategory_slug):
+def part(request, slug):
+    catalogue = get_catalogue()
     page = catalogue.by_slug.get(slug)
     if page is None:
         raise Http404(f"No part {slug}")
-
-    # The part is reached at exactly one path. Serving it under any category
-    # would mean the same page answering to several URLs, which the page tree
-    # did not allow and search engines should not be offered.
-    expected = (
-        page.category.slug,
-        page.subcategory.slug if page.subcategory else None,
-    )
-    if (category_slug, subcategory_slug) != expected:
-        raise Http404(f"{slug} does not live at this path")
 
     return render(
         request,
@@ -114,7 +91,6 @@ def _render_part(request, catalogue, slug, category_slug, subcategory_slug):
             "page": page,
             "variants": _variants(page),
             "related_parts": page.related_parts,
-            **_sidebar(catalogue, page.category),
         },
     )
 
@@ -128,8 +104,8 @@ def _variants(page):
     from stock.client import get_stock_many, list_by_group
 
     variants = []
-    if page.inventory_group:
-        for entry in list_by_group(page.inventory_group):
+    if page.group:
+        for entry in list_by_group(page.group):
             # The distinguishing detail is in the description; short_name is
             # the same word for every part in the group ("potentiometer" x25).
             description = (entry.get("description") or "").strip()
@@ -145,8 +121,7 @@ def _variants(page):
     seen = {v["number"] for v in variants}
     inline = [p for p in page.stocked if p["number"] not in seen]
     if inline:
-        # One request for the lot, not one each: the ceramic capacitor page
-        # covers 33 part numbers.
+        # One request for the lot, not one each: a group can run to 30+ parts.
         stock = get_stock_many([p["number"] for p in inline])
         variants += [
             {

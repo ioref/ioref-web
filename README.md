@@ -31,56 +31,70 @@ Without one the site still works — stock blocks are simply omitted.
 
 ## Editing a card
 
-Every card is one file, `content/parts/<slug>.md`:
+Every card is one file, `content/parts/<group-slug>.md`, keyed by the
+inventory group it documents rather than by one part number:
 
 ```markdown
 ---
-title: Infrared Receiver
-description: Interprets infrared remote control signals.
-category: input
-subcategory: light
-image: 0251.jpg
-parts:
-- number: '0251'
+title: Resistor
+description: A component that limits or regulates the flow of current in a circuit.
+group: resistor
 ---
 
 ## What it is
 
-The infrared receiver interprets infrared light commands.
+A resistor limits or regulates the flow of electrical current in a circuit.
 ```
+
+`group:` names an inventory group (`GET /api/v1/groups/`) and drives the
+stock table: every part inventory currently files under `resistor` shows up,
+live, whatever values happen to be stocked. It is a mistake for two files to
+name the same group — `catalog/content.py` refuses to load a second one.
+
+A part inventory has not yet grouped can still get a page. Use `parts:`
+instead of `group:` and list its numbers by hand:
+
+```yaml
+parts:
+- number: '0286'
+```
+
+A page needs one or the other. Neither is an error at load time.
 
 The `##` headings are a fixed set of seven, in a fixed display order: About,
 What it is, When to use it, How it works, How to use it, Getting started,
 Resources. A heading outside that set is an error at startup rather than a
-section that silently disappears from the page. Omit any you do not need.
+section that silently disappears from the page. Omit any you do not need. A
+group covering more than one distinct product (`breadboard`, `wire`) uses `###`
+subsections within a heading rather than being split back into separate pages
+— see those two files for the pattern.
 
 Images referenced as `/images/parts/<file>` are files under
 `public/images/parts/`, which is served at the root of the URL space rather
 than under `/static/`. Restart the server after editing; content is read once
 at startup.
 
-`content/categories.yml` holds the five categories and their subcategories,
-`content/part-sets.yml` the part sets.
+`content/categories.yml` lists the five fixed category slugs shown on the
+home page and nothing else — no groups, no subcategories. Which groups sit
+under which category is inventory's live data, fetched by `/c/<slug>/` on
+every request; see CLAUDE.md. `content/part-sets.yml` still lists the part
+sets, unaffected by any of this.
 
 ## Structure
 
 ```
-content/parts/*.md          one file per component
-content/categories.yml      input · output · power · connector · controller
+content/parts/*.md          one file per group, or per ungrouped part
+content/categories.yml      the five fixed category slugs, for the home page only
 content/part-sets.yml
 public/images/parts/        media the prose references by path
 public/videos/parts/
 ```
 
-**A component is not a part.** One file answers "what is a ceramic capacitor";
-its `parts:` list is the 10pF, 22pF and 47pF the lab actually holds, each with
-its own bin, count and price in ioref-inventory.
-
-This is the fix for a real problem in the old data: `data.csv` repeats the same
-capacitor explanation across 33 rows, the same incandescent-bulb explanation
-across 12, and soldering-tip instructions across 4. Editing one meant editing
-all of them. Most components have exactly one stocked part, and the migration
-defaults to that.
+**A guide documents a group, not a part number.** `resistor.md` answers "what
+is a resistor" once, and its stock table is every value inventory currently
+stocks under the `resistor` group — not a hand-typed list. This replaced an
+earlier scheme with one file per part number, which produced 31 separate
+"resistor" pages differing only by value.
 
 Category slugs are load-bearing: `main.css` colours boxes by
 `category-<slug>`, and the same five categories key the drawio shape library.
@@ -89,24 +103,23 @@ Category slugs are load-bearing: `main.css` colours boxes by
 
 | Here | ioref-inventory |
 |---|---|
-| Component names, descriptions, images, signal type | Counts, backstock |
+| Guide prose, images, signal type | Counts, backstock, locations |
 | Seven `docs_*` sections | Prices, suppliers, purchase links |
-| Categories, subcategories, part sets | Locations, min/max, status |
-| Related components | Stock and price history |
-| Which part numbers a component covers | The parts themselves |
+| Part sets | Groups, and which category each belongs to |
+| Related guides | Stock and price history |
+| Which group a guide documents | The parts themselves |
 
-They join on `part_number`, which is not a foreign key — separate databases by
-design, so integrity is a convention enforced at import.
+They join on group slug (or, for the rare ungrouped part, `part_number`), not
+a foreign key — separate databases by design, so integrity is a convention
+checked by `manage.py check_groups`, not enforced by a database constraint.
 
-Three fixes over the Directus schema:
+Two fixes over the Directus schema:
 
 - **Part sets are many-to-many.** Directus had a single FK on `parts`, so a part
   could belong to one set only — wrong, since a resistor appears in many kits.
-- **Guide content is separated from stock.** The old `parts` collection was one
-  42-column table doing both jobs, which is why inventory could not be deployed
-  independently.
-- **Components are separated from stocked parts**, so one explanation can cover
-  many part numbers.
+- **Guide content is separated from stock**, and both are separated from
+  category, which now lives in inventory as `Group.category` rather than as
+  front matter here — see CLAUDE.md for why.
 
 ## Inventory integration
 
@@ -155,11 +168,12 @@ Directus.
 Directus → Wagtail → files. The middle step is gone: `content/` is the source
 of truth now and is edited directly.
 
-Of 1,511 source rows in Directus about 130 carried guide content, and 49 of
-those survive as files in `content/parts/`. The rest were stock rows with no
-prose, or value variants of a component that now has one page; they belong to
-ioref-inventory and are browsable at `/inventory/`. The seven `docs_*` fields were markdown in Directus and are
-markdown here, byte for byte.
+Of 1,511 source rows in Directus about 130 carried guide content, and 40 of
+those survive as files in `content/parts/` today. The rest were stock rows
+with no prose of their own, or value variants of a group that now has one
+page (31 resistor rows became one), or ungrouped items nobody wrote up; all
+of it is still browsable at `/inventory/`. The seven `docs_*` fields were
+markdown in Directus and are markdown here, byte for byte.
 
 The Wagtail-era importer and the exporter that produced `content/` are in git
 history rather than the tree, since neither can run without the models they
@@ -171,13 +185,14 @@ were written against.
 uv run python manage.py test
 ```
 
-`check_groups` is separate, because it needs a running inventory:
+Two commands are separate from the test suite, because both need a running
+inventory:
 
 ```bash
-uv run python manage.py check_groups
+uv run python manage.py check_groups       # every group: in content/ still matches parts
+uv run python manage.py check_categories   # the five home-page categories still exist
 ```
 
-It verifies that every `inventory_group` in front matter still matches parts.
-Inventory answers an unknown group with an empty list rather than a 404, so a
-renamed group empties a page's stock table silently. Run it after inventory
-changes how groups are named.
+Inventory answers an unknown group or category with an empty list rather than
+a 404, so a rename on that side empties a page silently rather than erroring.
+Run these after inventory changes how it names either.

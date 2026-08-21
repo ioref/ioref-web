@@ -51,22 +51,34 @@ The empty `DATABASES` is the load-bearing part: it means anything that wants a
 model has to argue for reintroducing a database, rather than adding one field
 and quietly bringing back migrations.
 
-**Components are separate from the parts stocked under them.** One file answers
-"what is a ceramic capacitor"; its `parts:` list is the 10pF, 22pF and 47pF the
-lab actually holds, each with its own bin and count in inventory. The Directus
-schema had no such distinction, so `data.csv` repeats the same capacitor
-explanation across 33 rows, the same bulb explanation across 12, and editing one
-meant editing all of them.
+**A guide documents an inventory group, not a part number.** `resistor.md`
+answers "what is a resistor" once; its stock table is every value inventory
+currently stocks under the `resistor` group -- live, not a list someone typed.
+`group:` in front matter is the join key, and `catalog/content.py` refuses to
+load two files that claim the same group.
 
-The import defaulted to 1:1, one file per part number, which produced 31
-resistor pages that differed only by value. Those are merged: `resistor`,
-`potentiometer` and `electrolytic-capacitor` each cover a whole family now.
-Further merging is done as staff next edit a card.
+This replaced an earlier, part-number-keyed scheme that produced 31 separate
+"resistor" pages differing only by value, because the Directus import ran 1:1.
+Merging those down surfaced 21 slugs that had silently lost a decimal point or
+a micro sign in the process (`22f-electrolytic-capacitor` for both 2.2uF and
+22uF); collapsing to one page per group made the whole class of collision
+impossible rather than fixing each instance. Six groups (`breadboard`, `wire`,
+`leds`, `pushbuttons`, `h-bridge-motor-drivers`, `microcontroller-boards`)
+still carry more than one product's worth of prose, kept as `###` subsections
+within the fixed section headings rather than split back into separate pages.
 
-**`part_number` is the join key.** It lives in the `parts:` list in frontmatter.
-The two applications have separate stores, so it is not a foreign key;
-referential integrity is a convention, and `catalog/tests.py` at least checks
-the numbers are unique across the catalogue.
+Two pages have no group at all: `soil-moisture-sensor` and
+`passive-infrared-sensor` document parts inventory has not yet grouped. They
+fall back to a hand-typed `parts:` list, the mechanism every guide used before
+groups existed. `content/content.py:load()` requires a page to have one or the
+other; a page with neither raises at startup rather than rendering with an
+empty stock table and no explanation.
+
+**Category is not a fact a guide file carries.** It used to be `category:`/
+`subcategory:` front matter, validated against a local `categories.yml` tree.
+It is now `Group.category` in inventory (see "Category lives in inventory,
+live" below), which is why the local file only lists five fixed slugs and
+nothing under them any more.
 
 **Part sets are many-to-many.** Directus modelled this as a single FK on
 `parts`, restricting a part to one set. A resistor belongs in many kits.
@@ -99,7 +111,7 @@ the view that read it. Not rewriting the markdown was the point of storing it.
 `public/` is served at the root of the URL space by `WHITENOISE_ROOT`, and is
 deliberately **not** in `STATICFILES_DIRS`. Under `STATIC_URL` these would be
 `/static/images/parts/<file>`, which is not what the prose asks for, and
-`collectstatic` would copy 58 MB into `staticfiles/` as a second set whose
+`collectstatic` would copy 51 MB into `staticfiles/` as a second set whose
 names the manifest storage then hashes. Files existing on disk is not the same
 as files answering on a URL; `catalog/tests.py` checks the paths and the smoke
 test in the Commands section checks the URLs.
@@ -115,60 +127,89 @@ it went when the CMS did; recover it from git history if a web editor ever comes
 back. ioref-inventory still uses that arrangement for staff count entry, and is
 unaffected.
 
-**Media is committed to the repository.** 110 files, 58 MB in `public/`,
+**Media is committed to the repository.** 98 files, 51 MB in `public/`,
 unoptimised straight out of Directus. Only files the prose actually references
-are kept; the export copied Wagtail's whole alias table, 75 files of which
-nothing pointed at. Deliberate, on the grounds that the
-alternative is running something to serve them. Note that git keeps every
-future revision forever, so replacing an image is not free.
+are kept; both the original export and the group merge left orphans behind
+(Wagtail's whole alias table on the way in, then a size-variant's own photo
+becoming redundant once four breadboards became one guide), and each pass
+deleted what it found. Deliberate, on the grounds that the alternative is
+running something to serve them. Note that git keeps every future revision
+forever, so replacing an image is not free.
 
 ## Implementation constraints
 
 **Never give the content objects a generated `__repr__` or `__eq__`.** `Part`
-points at its `Category`, whose `parts` list points back. Both generated methods
-walk fields recursively, so either one follows that cycle until the process
-dies. This is not hypothetical: an unrelated exception under `DEBUG=True` made
-Django render a traceback page, which reprs the view's local variables, which
-exhausted memory and got the process OOM-killed with no traceback to say why.
-Hence `@dataclass(eq=False)` and `repr=False` on every back-reference in
-`catalog/content.py`, and a test that asserts `repr()` terminates.
+can reach another `Part` through `related_parts`, which can point back. Both
+generated methods walk fields recursively, so either one follows a cycle until
+the process dies. This is not hypothetical: an unrelated exception under
+`DEBUG=True` made Django render a traceback page, which reprs the view's local
+variables, which exhausted memory and got the process OOM-killed with no
+traceback to say why. Hence `@dataclass(eq=False)` and `repr=False` on every
+list/relation field in `catalog/content.py`, and a test that asserts `repr()`
+terminates.
 
-**`inventory_group` means "this page documents the whole group".** It does not
-mean "this part happens to be in that group", which is what the Directus import
-wrote and what made three switch pages each render a byte-identical table of
-every switch in the lab. A page with its own `parts:` entry must not carry a
-group; only `resistor` and `potentiometer` do, and neither has an inline part
-of its own. Getting this wrong is invisible in tests and obvious on the page.
+**`group:` means "this page documents the whole group".** It does not mean
+"this part happens to be in that group", which is what the Directus import
+originally wrote and what made three switch pages each render a byte-identical
+table of every switch in the lab. `catalog/content.py:load()` now enforces the
+stronger half of this mechanically: it raises if two files declare the same
+group. It cannot catch a file naming the *wrong* group -- that takes a live
+check, which is what the paragraph below is for.
 
 **An unknown group is silent.** Inventory answers a group it has never heard
 of with HTTP 200 and an empty result set, which is byte-identical to a group
 whose parts were all retired. When inventory re-derived its groups from part
 names, `resistors` became `resistor`, and the resistor page rendered an empty
-stock table for two days without logging anything. `list_by_group` now warns on
-an empty result, and `manage.py check_groups` is the deliberate version to run
-after any rename; `--strict` exits non-zero for a deploy gate. It is a command
-rather than a test because it needs a running inventory, and a suite that fails
-when a service is down is a suite people learn to ignore.
+stock table for two days without logging anything. Three more slugs were found
+the same way while merging the value-keyed pages down to one-per-group:
+`thermistor`/`thermistors`, `breadboard-power-supply`/`power-supplies`,
+`pancake-vibration-motor`/`vibration-motors` -- each a file whose own name and
+declared group happened to be identical and both wrong, which is exactly the
+shape a human proofreading a list of "does this look right" will not catch.
+What did catch them was resolving each file's group from its own part number
+against inventory's live data and comparing, which is mechanical and does not
+get tired. `list_by_group` also warns on an empty result at runtime, and
+`manage.py check_groups` is the deliberate version to run after any rename;
+`--strict` exits non-zero for a deploy gate. It is a command rather than a
+test because it needs a running inventory, and a suite that fails when a
+service is down is a suite people learn to ignore.
 
-**URL ordering in `catalog/urls.py` is load-bearing.** Category slugs sit at the
-root of the path, because that is where the legacy site had them and where the
-links inside the guide prose point. `/search/` and `/part-sets/` are therefore
-one reordering away from being interpreted as categories. Tested.
+**A guide's URL never depends on its category.** Every guide lives at
+`/parts/<group-slug>/`, full stop -- `catalog/content.py` never calls
+inventory, so parsing a guide and building its URL cannot fail because
+inventory is down. Category only exists as a live, request-scoped concept,
+fetched by `views.category` for the `/c/<slug>/` browse page and nowhere
+else. This replaced an earlier scheme that nested guides under
+`/<category>/[<subcategory>/]<slug>/`, which needed a resolver to tell a
+subcategory from a part at the same URL depth and made the site's whole
+shape depend on `category:` front matter that inventory now owns instead.
 
-**`/<category>/<something>/` is ambiguous and resolved in the view.** It is
-either a subcategory or a part hung straight off its category. Wagtail told
-them apart by walking the page tree; `views.category_child` checks the
-subcategory names first and falls back to a part.
+**Category lives in inventory, live.** `Group.category` is inventory's fact,
+not a mapping file here -- see its own docstring: "the person who creates a
+group is the person who knows which category it belongs to, and making them
+edit a second repository to say so is how a taxonomy goes stale." `/c/<slug>/`
+calls `list_groups_by_category()` on every request and shows every group
+inventory returns, whether or not a guide exists for it; a guided group links
+to its guide, an unguided one links to `/inventory/?group=<slug>`. This is a
+browse view in the same sense `/inventory/` is one: `InventoryUnavailable`
+renders as a 503, not an empty category, for the same reason `list_parts()`
+raises rather than returning `[]`.
 
-**A part is served at exactly one URL.** `_render_part` 404s if the path does
-not match the part's own category and subcategory, so the same page cannot be
-reached under all five categories. The page tree enforced this for free.
+**The five categories themselves are hardcoded, not fetched.** `content/
+categories.yml` lists `input`, `output`, `power`, `connector`, `controller`
+and nothing else -- no groups, no subcategories. The home page must render
+even when inventory is unreachable, and `main.css` colours boxes by these
+exact five slugs, which essentially never change. What changes constantly is
+*which groups sit under Power today*, and that is never cached here; it is
+asked for fresh every time `/c/power/` is visited.
 
-**Category slugs are load-bearing.** `main.css` colours boxes with
-`category-<slug>`, so the five slugs must remain `input`, `output`, `power`,
-`connector`, `controller`. The home page rows are driven from slugs in
-`views.home` rather than file order, so that reordering `categories.yml` cannot
-break the layout.
+**Subcategory does not exist any more.** It was local front matter
+(`acceleration`, `light`, `movement`...) validated against a tree in
+`categories.yml`. Inventory has no equivalent concept -- only `Group.category`,
+one level -- so there is nothing left to source a second tier from. Inventory's
+`tags` (`light`, `movement`, `sound`...) cover similar ground and are already
+returned per-part by the API; a subcategory-like filter on the `/c/<slug>/`
+page could be rebuilt from those later, but nothing does today.
 
 **The client functions fail differently on purpose.** `get_stock()` and
 `get_stock_many()` return `None` / `{}`; `list_parts()` raises
@@ -233,7 +274,8 @@ several constraints that look arbitrary without it.
 uv sync
 uv run python manage.py runserver
 uv run python manage.py test
-uv run python manage.py check_groups     # after inventory renames a group
+uv run python manage.py check_groups      # after inventory renames a group
+uv run python manage.py check_categories  # after inventory's Category rows change
 ```
 
 No `migrate`, no `createsuperuser`, no seed command. There is no database and
@@ -269,13 +311,14 @@ EOF
 
 ## Outstanding work
 
-**The category sidebar no longer lists loose parts.** The Wagtail template
-rendered `category.get_children`, which returns subcategories *and* the parts
-hung directly off a category, so the rail on `/connector/` listed all 24 of its
-parts as though they were subcategories. `side_category_menu.html` now iterates
-`category.subcategories`. This is the only visible difference between the CMS
-site and this one, and whether it was a bug or a feature is a judgement call
-that has not been made. Restoring the old behaviour is a one-line change.
+**Every category page reads "No groups are filed" right now.** Inventory's
+`Category` table exists (`Group.category` shipped in ioref-inventory's
+`187b5c7`) but is unpopulated: `manage.py check_categories` confirms zero of
+the five hardcoded slugs currently match anything live. This is not a bug
+here -- `/c/power/` is correctly reporting what inventory has -- it is
+inventory-side population work, assigning each of its ~126 groups a category
+in the admin. Once that starts happening the pages fill in with no code
+change on this side.
 
 **Search has no autocomplete.** `Catalogue.search` is a substring scan over the
 catalogue, ranking title matches first. It returns a superset of what Wagtail's

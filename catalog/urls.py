@@ -1,9 +1,11 @@
-"""Public URLs, matching what the Wagtail page tree used to produce.
+"""Public URLs.
 
-Order matters. The catch-all category patterns at the bottom would happily
-swallow /search/ and /part-sets/, so the named routes come first. That is the
-cost of keeping category slugs at the root of the path, which is where the
-legacy site had them and where the links in the guide prose point.
+Flat, and none of it is ambiguous: a guide is always /parts/<group-slug>/
+regardless of category, and a category listing is always /c/<slug>/. The
+previous scheme nested guides under /<category>/[<subcategory>/]<slug>/ and
+needed a resolver to tell a subcategory from a part at the same depth; that
+whole class of problem went away when category stopped being a fact a guide
+file carries.
 """
 
 from django.urls import path
@@ -15,15 +17,6 @@ urlpatterns = [
     path("search/", views.search, name="search"),
     path("part-sets/", views.part_set_index, name="part_set_index"),
     path("part-sets/<slug:slug>/", views.part_set, name="part_set"),
-    path("<slug:category_slug>/", views.category, name="category"),
-    # Either a subcategory or a part sitting directly under the category; the
-    # view decides. See views.category_child.
-    path(
-        "<slug:category_slug>/<slug:slug>/", views.category_child, name="category_child"
-    ),
-    path(
-        "<slug:category_slug>/<slug:subcategory_slug>/<slug:slug>/",
-        views.part_in_subcategory,
-        name="part",
-    ),
+    path("parts/<slug:slug>/", views.part, name="part"),
+    path("c/<slug:category_slug>/", views.category, name="category"),
 ]

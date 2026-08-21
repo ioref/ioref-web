@@ -12,18 +12,6 @@
     <div class="side_menu part_attributes shrinkable">
         <div class="part_name">{{ page.title }}</div>
 
-        {% if page.category %}
-            <div class="attribute">
-                <div class="label">Category:</div>
-                <div class="value"><a href="{{ page.category.url }}">{{ page.category.title }}</a></div>
-            </div>
-        {% endif %}
-        {% if page.subcategory %}
-            <div class="attribute">
-                <div class="label">Subcategory:</div>
-                <div class="value"><a href="{{ page.subcategory.url }}">{{ page.subcategory.title }}</a></div>
-            </div>
-        {% endif %}
         {% if page.signal_type %}
             <div class="attribute">
                 <div class="label">Signal Type:</div>

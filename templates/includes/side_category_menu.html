@@ -1,30 +1,11 @@
-{# Ported from maker-cards views/partials/side-category-menu.hbs. #}
+{# The five fixed categories, none of it live: this must render even when
+   inventory is down, same as the rest of the page shell. #}
 <div class="side_menu">
     <div class="category_list">
         {% for category in all_categories %}
             <div class="category">
-                <a href="{{ category.url }}">{{ category.title }}</a>
-                {% if category.id == active_category.id %}
-                    {% for sub in category.subcategories %}
-                        <div class="subcategory"><a href="{{ sub.url }}">{{ sub.title }}</a></div>
-                    {% endfor %}
-                {% endif %}
+                <a href="{{ category.url }}"{% if category.slug == active_category_slug %} class="active"{% endif %}>{{ category.title }}</a>
             </div>
         {% endfor %}
-    </div>
-
-    <div class="category_dropdown">
-        <div class="dropdown">
-            <a id="categoryDropdown" class="dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-                {% include "includes/page_title.html" with title=active_category.title %}
-            </a>
-            <ul class="dropdown-menu" aria-labelledby="categoryDropdown">
-                {% for category in all_categories %}
-                    <li class="dropdown_item{% if category.id == active_category.id %} active{% endif %}">
-                        <a href="{{ category.url }}" class="dropdown_item_label">{{ category.title }}</a>
-                    </li>
-                {% endfor %}
-            </ul>
-        </div>
     </div>
 </div>

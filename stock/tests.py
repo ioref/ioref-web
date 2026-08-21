@@ -14,7 +14,13 @@ import httpx
 from django.core.cache import cache
 from django.test import SimpleTestCase
 
-from stock.client import InventoryUnavailable, get_stock, list_parts
+from stock.client import (
+    InventoryUnavailable,
+    get_stock,
+    list_categories,
+    list_groups_by_category,
+    list_parts,
+)
 
 PART = {
     "part_number": "0020",
@@ -99,6 +105,36 @@ class ListPartsTests(SimpleTestCase):
         # is down"; an empty list for both would silently show an empty shop.
         with self.assertRaises(InventoryUnavailable):
             list_parts()
+
+
+class ListCategoriesTests(SimpleTestCase):
+    @patch("stock.client._get")
+    def test_returns_the_list(self, mock_get):
+        mock_get.return_value = {"results": [{"slug": "power", "name": "Power"}]}
+        self.assertEqual(list_categories()[0]["slug"], "power")
+
+    @patch("stock.client._get")
+    def test_outage_raises_rather_than_returning_empty(self, mock_get):
+        """An empty list here reads as "no categories exist", not "inventory
+        is down" -- the same distinction list_parts() already draws."""
+        mock_get.side_effect = httpx.ConnectError("refused")
+        with self.assertRaises(InventoryUnavailable):
+            list_categories()
+
+
+class ListGroupsByCategoryTests(SimpleTestCase):
+    @patch("stock.client._get")
+    def test_returns_the_groups(self, mock_get):
+        mock_get.return_value = {"results": [{"slug": "resistor", "name": "Resistors"}]}
+        self.assertEqual(list_groups_by_category("power")[0]["slug"], "resistor")
+
+    @patch("stock.client._get")
+    def test_outage_raises_rather_than_returning_empty(self, mock_get):
+        """This drives /c/<slug>/, a browse view in the same sense
+        /inventory/ is one: an outage must not render as an empty category."""
+        mock_get.side_effect = httpx.ConnectError("refused")
+        with self.assertRaises(InventoryUnavailable):
+            list_groups_by_category("power")
 
 
 class InventoryViewTests(SimpleTestCase):
