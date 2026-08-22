@@ -162,14 +162,10 @@ TimeoutStartSec=300
 WantedBy=default.target
 ```
 
-**Port 8989, not 8000 and not some other free port.** This is the legacy
-frontdoor's own host-side port (see `02-ioref.org.conf`'s `ProxyPass /`), and
-this container is deliberately taking over that exact slot: ioref-web serves
-the apex `/` in place of the frontdoor, per CLAUDE.md's stated architecture,
-not a separate hostname or path. Reusing the same port means the Apache vhost
-that already proxies `/` to it needs no change at all for the cutover — only
-this container needs to exist and the frontdoor needs to stop. Not 8000:
-ioref-inventory's container already publishes there.
+**Port 8989, not 8000.** `02-ioref.org.conf`'s apex `/` vhost already proxies
+to `127.0.0.1:8989` (see ioref-inventory's `DEPLOYMENT.md` §6), matching this
+application's place in the architecture per CLAUDE.md ("ioref-web...at `/`").
+Not 8000: ioref-inventory's container already publishes there.
 
 No `Volume=` line: there is no directory this container needs to persist.
 
@@ -190,32 +186,15 @@ no identity headers, and has nothing analogous to `TrustedHeaderBackend` for a
 proxy to protect. The entire "strip client-supplied identity headers" section
 that dominates ioref-inventory's Apache setup does not apply here.
 
-**No new vhost and no conf edit are needed.** `02-ioref.org.conf` (see
-ioref-inventory's `DEPLOYMENT.md` §6) already proxies the apex `/` to
-`127.0.0.1:8989`, the frontdoor's port. Because this container's Quadlet
-publishes to that same port (§5 above), the existing `ProxyPass` line starts
-serving ioref-web the moment the frontdoor stops and this container starts —
-there is nothing in Apache to change for this cutover specifically.
+**No conf edit is needed.** `02-ioref.org.conf` (see ioref-inventory's
+`DEPLOYMENT.md` §6) already proxies the apex `/` to `127.0.0.1:8989`. This
+container's Quadlet publishes to that same port (§5 above), so the existing
+`ProxyPass` line reaches it once the container is running.
 
 `guides.ioref.org` keeps redirecting to the apex, unchanged: that redirect
 exists because no Shibboleth endpoint is registered for that name, which
-still matters for `/inventory`'s login even after this cutover, so it stays as
-documented in ioref-inventory's `DEPLOYMENT.md` §6.
-
-### Retiring the frontdoor
-
-The frontdoor (`maker-cards.service`, Node/Express, `Requires=mysqld.service
-directus.service`) currently holds port 8989. Only one process can bind it,
-so stop and disable that unit before starting this Quadlet for the first
-time:
-
-```bash
-systemctl stop maker-cards.service
-systemctl disable maker-cards.service
-```
-
-Whether `mysqld.service` and `directus.service` should also be retired is
-outside this document's scope; they may serve other purposes on this host.
+matters for `/inventory`'s login, so it stays as documented in
+ioref-inventory's `DEPLOYMENT.md` §6.
 
 ### Verifying
 
@@ -226,7 +205,7 @@ curl -sSI https://ioref.org/
 ```
 
 Should return `200` once the container is running (see "First deployment"
-below) and the frontdoor has stopped.
+below).
 
 ## 7. Install a second GitHub Actions runner
 
@@ -312,8 +291,7 @@ own page under **Package settings > Change visibility**.
 
 1. Confirm the desired commit has passed **Build image**.
 2. Confirm CI produced `ghcr.io/ioref/ioref-web:sha-<commit-sha>`.
-3. Stop and disable `maker-cards.service` (§6 above), if not already done.
-4. In GitHub Actions, select **Deploy production**, choose the branch or
+3. In GitHub Actions, select **Deploy production**, choose the branch or
    commit, and click **Run workflow**.
 
 The runner pulls the image, tags it `localhost/ioref-web:production`,
@@ -334,11 +312,10 @@ should return `200`.
 
 # Deploying updates
 
-Same procedure as first deployment (minus the frontdoor retirement, a
-one-time step): merge to `main`, confirm **Build image** succeeded, run
-**Deploy production**. The workflow itself waits on the healthcheck and rolls
-back automatically if the new image never turns healthy, so a green run is
-already a verified deploy.
+Same procedure as first deployment: merge to `main`, confirm **Build image**
+succeeded, run **Deploy production**. The workflow itself waits on the
+healthcheck and rolls back automatically if the new image never turns
+healthy, so a green run is already a verified deploy.
 
 ---
 
