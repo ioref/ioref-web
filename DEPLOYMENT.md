@@ -1,11 +1,11 @@
 # Production Deployment
 
 ioref-web production runs on **Red Hat Enterprise Linux 9**, on the same host
-as ioref-inventory: `ioref-web-01.andrew.cmu.edu`. This document assumes that
-host already exists and that ioref-inventory's own `DEPLOYMENT.md` was
-followed first; where a step there already did something this app also needs
-(the `deploy` account, package installs, lingering), this document says so and
-does not repeat it.
+as ioref-inventory: `ioref-web-01.andrew.cmu.edu`. This document assumes
+ioref-inventory's own `DEPLOYMENT.md` was followed first, and defers to it for
+anything that isn't specific to this application: the reasoning behind the
+shared pieces (the Quadlet approach, the runner proxy setup, why the deploy
+workflow skips checkout and GHCR login) lives there, once, rather than twice.
 
 The application runs as a rootless Podman container under the same `deploy`
 account. Production configuration lives in `/etc/ioref-web/production.env`.
@@ -73,7 +73,8 @@ this application deliberately does not make (see the repository's own
 
 These steps are performed once when adding ioref-web to a host. On
 `ioref-web-01`, most of this is already done for ioref-inventory and only
-needs to be checked, not repeated.
+needs to be checked, not repeated. See ioref-inventory's `DEPLOYMENT.md`
+sections 1–3 for what each of these actually sets up and why.
 
 ## 1. Required packages
 
@@ -83,12 +84,8 @@ Already installed if ioref-inventory's setup ran first: `podman`, `curl`,
 ## 2. The deploy account
 
 Reuse the existing `deploy` account. Do not create a second one, and do not
-re-run the subordinate UID/GID allocation from ioref-inventory's setup: that
-range is assigned to the Linux account, not to an individual application, and
-running `usermod --add-subuids`/`--add-subgids` again risks assigning an
-overlapping range.
-
-Confirm it is already usable:
+re-run the subordinate UID/GID allocation: that range is assigned to the
+Linux account, not to an individual application.
 
 ```bash
 sudo -iu deploy podman info
@@ -96,8 +93,7 @@ sudo -iu deploy podman info
 
 ## 3. The deploy user's systemd instance
 
-Already enabled if ioref-inventory's setup ran first (`loginctl enable-linger
-deploy`). Confirm:
+Already enabled if ioref-inventory's setup ran first. Confirm:
 
 ```bash
 loginctl show-user deploy | grep Linger
@@ -124,12 +120,12 @@ The full environment this application reads, and nothing else:
 ```dotenv
 SECRET_KEY=<generated-value>
 DEBUG=False
-ALLOWED_HOSTS=guides.ioref.org
+ALLOWED_HOSTS=ioref.org
 
 # The only channel to the inventory application. Generate a READ-scoped key
 # in the inventory admin under "API keys". This site must never hold a
 # write-scoped key: nothing here writes stock.
-INVENTORY_API_URL=https://inventory.ioref.org
+INVENTORY_API_URL=https://ioref.org/inventory
 INVENTORY_API_KEY=<read-scoped-key-from-ioref-inventory-admin>
 INVENTORY_API_TIMEOUT=3.0
 INVENTORY_CACHE_SECONDS=120
@@ -156,7 +152,7 @@ Wants=network-online.target
 ContainerName=ioref-web-production
 Image=localhost/ioref-web:production
 EnvironmentFile=/etc/ioref-web/production.env
-PublishPort=127.0.0.1:8001:8000
+PublishPort=127.0.0.1:8989:8000
 
 [Service]
 Restart=on-failure
@@ -166,11 +162,14 @@ TimeoutStartSec=300
 WantedBy=default.target
 ```
 
-**Port 8001, not 8000.** ioref-inventory's container already publishes to
-`127.0.0.1:8000`; both images bind `0.0.0.0:8000` internally, since both
-Dockerfiles follow the same pattern, so their *host-side* ports have to
-differ. 8001 is free on this host as of this writing; confirm nothing else
-claims it before using it (`ss -ltn | grep 8001`).
+**Port 8989, not 8000 and not some other free port.** This is the legacy
+frontdoor's own host-side port (see `02-ioref.org.conf`'s `ProxyPass /`), and
+this container is deliberately taking over that exact slot: ioref-web serves
+the apex `/` in place of the frontdoor, per CLAUDE.md's stated architecture,
+not a separate hostname or path. Reusing the same port means the Apache vhost
+that already proxies `/` to it needs no change at all for the cutover — only
+this container needs to exist and the frontdoor needs to stop. Not 8000:
+ioref-inventory's container already publishes there.
 
 No `Volume=` line: there is no directory this container needs to persist.
 
@@ -189,67 +188,53 @@ image is created by the first deployment, the same as ioref-inventory's.
 No Shibboleth involvement at all: this application has no `AUTH_MODE`, reads
 no identity headers, and has nothing analogous to `TrustedHeaderBackend` for a
 proxy to protect. The entire "strip client-supplied identity headers" section
-that dominates ioref-inventory's Apache setup does not apply here. This is a
-plain TLS-terminating reverse proxy vhost.
+that dominates ioref-inventory's Apache setup does not apply here.
 
-`guides.ioref.org` already resolves to this host and is already covered by
-the InCommon SAN certificate ioref-inventory's vhosts use (`ioref.org`,
-`guides`, `inventory`, `admin`, `ioref-web-01.andrew.cmu.edu`,
-`ioref.ideate.cmu.edu`), so no new certificate is needed.
+**No new vhost and no conf edit are needed.** `02-ioref.org.conf` (see
+ioref-inventory's `DEPLOYMENT.md` §6) already proxies the apex `/` to
+`127.0.0.1:8989`, the frontdoor's port. Because this container's Quadlet
+publishes to that same port (§5 above), the existing `ProxyPass` line starts
+serving ioref-web the moment the frontdoor stops and this container starts —
+there is nothing in Apache to change for this cutover specifically.
 
-**This is a cutover, not a fresh vhost.** As of ioref-inventory's own
-`DEPLOYMENT.md`, `guides.ioref.org` is a bare redirect to the apex, configured
-in `02-ioref.org.conf` because no Shibboleth endpoint was ever registered for
-that name. Serving ioref-web there means removing that redirect from
-`02-ioref.org.conf` and replacing it with a real vhost. Since this doesn't
-touch Shibboleth at all, the reason that redirect existed no longer applies:
+`guides.ioref.org` keeps redirecting to the apex, unchanged: that redirect
+exists because no Shibboleth endpoint is registered for that name, which
+still matters for `/inventory`'s login even after this cutover, so it stays as
+documented in ioref-inventory's `DEPLOYMENT.md` §6.
 
-```apache
-<VirtualHost *:80>
-  ServerName guides.ioref.org
-  Redirect permanent "/" "https://guides.ioref.org/"
-</VirtualHost>
+### Retiring the frontdoor
 
-<VirtualHost *:443>
-  ServerName guides.ioref.org
+The frontdoor (`maker-cards.service`, Node/Express, `Requires=mysqld.service
+directus.service`) currently holds port 8989. Only one process can bind it,
+so stop and disable that unit before starting this Quadlet for the first
+time:
 
-  ErrorLog    logs/ssl_error_log
-  TransferLog logs/ssl_access_log
-  LogLevel warn
-
-  SSLEngine on
-  SSLCertificateFile      /etc/pki/tls/certs/localhost.crt
-  SSLCertificateKeyFile   /etc/pki/tls/private/localhost.key
-  SSLCertificateChainFile /etc/pki/tls/certs/server-chain.crt
-  SSLHonorCipherOrder on
-  SSLCipherSuite      PROFILE=SYSTEM
-  SSLProxyCipherSuite PROFILE=SYSTEM
-
-  ProxyRequests Off
-  ProxyPreserveHost On
-  RequestHeader set X-Forwarded-Proto "https"
-
-  ProxyPass        / http://127.0.0.1:8001/
-  ProxyPassReverse / http://127.0.0.1:8001/
-</VirtualHost>
+```bash
+systemctl stop maker-cards.service
+systemctl disable maker-cards.service
 ```
+
+Whether `mysqld.service` and `directus.service` should also be retired is
+outside this document's scope; they may serve other purposes on this host.
 
 ### Verifying
 
 ```bash
 apachectl configtest
 systemctl reload httpd
-curl -sSI https://guides.ioref.org/
+curl -sSI https://ioref.org/
 ```
 
-Should return `200` once the container is running (step 6 of "First
-deployment" below).
+Should return `200` once the container is running (see "First deployment"
+below) and the frontdoor has stopped.
 
 ## 7. Install a second GitHub Actions runner
 
 A runner registers to exactly one repository, so ioref-inventory's existing
-runner cannot also serve ioref-web: this needs its own installation,
-alongside the existing one, as the same `deploy` user.
+runner cannot also serve ioref-web: this needs its own installation. See
+ioref-inventory's `DEPLOYMENT.md` §7 for why each step below matters (the
+labels prompt in particular: skipping it produces a runner `deploy.yml` can
+never target, with no error to explain why).
 
 ```bash
 mkdir -p /opt/github-actions-runner-web
@@ -261,13 +246,10 @@ export HTTPS_PROXY=http://proxy.andrew.cmu.edu:3128
 export NO_PROXY=.cmu.edu,.cmu.local,localhost,127.0.0.1
 ```
 
-In GitHub: open **ioRef/ioref-web** → **Settings** → **Actions > Runners** →
-**New self-hosted runner** → choose Linux and the server's architecture.
-Use the download and extraction commands shown there, into
+In GitHub: open **ioref/ioref-web** → **Settings** → **Actions > Runners** →
+**New self-hosted runner** → choose Linux and the server's architecture. Use
+the download and extraction commands shown there, into
 `/opt/github-actions-runner-web`.
-
-Run the generated `config.sh` command with the registration token GitHub
-gave you:
 
 ```bash
 ./config.sh \
@@ -275,20 +257,9 @@ gave you:
   --token <TIME-LIMITED-TOKEN>
 ```
 
-It prompts interactively. Press Enter for the runner group and the runner
-name defaults. **Do not press Enter at the labels prompt:**
-
-```text
-Enter any additional labels (ex. label-1,label-2): [press Enter to skip] ioref-web-production
-```
-
-Type `ioref-web-production` and confirm `√ Runner successfully added`.
-Skipping it registers the runner with only the default labels, and
-`deploy.yml` targets `runs-on: [self-hosted, linux, ioref-web-production]`
-specifically, so a runner without that label never picks up a deploy job,
-with no error to explain why. Press Enter for the work folder prompt.
-
-Create its persistent proxy configuration:
+Press Enter for the runner group and name defaults. **At the labels prompt,
+type `ioref-web-production`** and confirm `√ Runner successfully added`.
+Press Enter for the work folder prompt.
 
 ```bash
 cat > /opt/github-actions-runner-web/.env <<'EOF'
@@ -298,28 +269,23 @@ no_proxy=.cmu.edu,.cmu.local,localhost,127.0.0.1
 EOF
 chown deploy:deploy /opt/github-actions-runner-web/.env
 chmod 0644 /opt/github-actions-runner-web/.env
-```
 
-Install and start it as a service, exactly as ioref-inventory's runner was:
-
-```bash
 sudo ./svc.sh install deploy
 sudo ./svc.sh start
 sudo ./svc.sh status
 ```
 
 **GitHub's generated systemd unit name is derived from the runner's
-configured name, not from the directory it runs from**, so verify it does
-not collide with ioref-inventory's runner service before starting:
+configured name, not from the directory it runs from**, so verify it does not
+collide with ioref-inventory's runner service before starting:
 
 ```bash
 systemctl list-units 'actions.runner.*' --all
 ```
 
-Two distinct unit names should be listed once both runners exist.
-
-In GitHub, **Settings > Actions > Runners** should show it as **Idle** with
-the `ioref-web-production` label.
+Two distinct unit names should be listed once both runners exist. In GitHub,
+**Settings > Actions > Runners** should show it as **Idle** with the
+`ioref-web-production` label.
 
 ---
 
@@ -346,7 +312,8 @@ own page under **Package settings > Change visibility**.
 
 1. Confirm the desired commit has passed **Build image**.
 2. Confirm CI produced `ghcr.io/ioref/ioref-web:sha-<commit-sha>`.
-3. In GitHub Actions, select **Deploy production**, choose the branch or
+3. Stop and disable `maker-cards.service` (§6 above), if not already done.
+4. In GitHub Actions, select **Deploy production**, choose the branch or
    commit, and click **Run workflow**.
 
 The runner pulls the image, tags it `localhost/ioref-web:production`,
@@ -360,44 +327,35 @@ export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 podman ps --filter name=ioref-web-production
 ```
 
-should show the container `(healthy)`, and `curl -sSI https://guides.ioref.org/`
+should show the container `(healthy)`, and `curl -sSI https://ioref.org/`
 should return `200`.
 
 ---
 
 # Deploying updates
 
-Same procedure as first deployment: merge to `main`, confirm **Build image**
-succeeded, run **Deploy production**. The workflow itself waits on the
-healthcheck and rolls back automatically if the new image never turns
-healthy, so a green run is already a verified deploy.
+Same procedure as first deployment (minus the frontdoor retirement, a
+one-time step): merge to `main`, confirm **Build image** succeeded, run
+**Deploy production**. The workflow itself waits on the healthcheck and rolls
+back automatically if the new image never turns healthy, so a green run is
+already a verified deploy.
 
 ---
 
 # Rollback
 
-The workflow rolls back on its own if the new image never becomes healthy.
+Same mechanism as ioref-inventory's — see its `DEPLOYMENT.md` "Rollback"
+section for the full reasoning and the emergency manual procedure. Substitute
+these values:
 
-For a deliberate rollback to an older, already-healthy release, re-run
-**Deploy production** with the known-good commit SHA in the optional `sha`
-input.
+| | |
+|---|---|
+| Image | `ghcr.io/ioref/ioref-web:sha-<KNOWN-GOOD-SHA>` |
+| Local tag | `localhost/ioref-web:production` |
+| Unit | `ioref-web-production.service` |
 
-If GitHub Actions itself is unreachable, an emergency manual rollback can be
-performed on the host as `deploy`:
-
-```bash
-export HTTP_PROXY=http://proxy.andrew.cmu.edu:3128
-export HTTPS_PROXY=http://proxy.andrew.cmu.edu:3128
-export NO_PROXY=.cmu.edu,.cmu.local,localhost,127.0.0.1
-
-podman pull ghcr.io/ioref/ioref-web:sha-<KNOWN-GOOD-SHA>
-podman tag \
-  ghcr.io/ioref/ioref-web:sha-<KNOWN-GOOD-SHA> \
-  localhost/ioref-web:production
-
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-systemctl --user restart ioref-web-production.service
-```
+For a deliberate rollback, re-run **Deploy production** with the known-good
+commit SHA in the optional `sha` input.
 
 ---
 
@@ -418,7 +376,8 @@ secret values.
 
 # Runner maintenance
 
-Same as ioref-inventory's runner: it normally updates itself automatically.
+Same as ioref-inventory's runner (see its `DEPLOYMENT.md`); it normally
+updates itself automatically.
 
 ```bash
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
@@ -434,31 +393,25 @@ its service and, if needed, re-register it following section 7 above.
 
 The self-hosted runner executes repository workflow commands as `deploy`.
 Treat changes to this repository's deployment workflow as production access,
-the same as ioref-inventory's.
+the same as ioref-inventory's — see its `DEPLOYMENT.md` "Security notes" for
+the shared list (runner scoping, no personal account, no root, no
+unrestricted `sudo`, immutable `sha-*` artifacts, no inbound SSH). Specific to
+this application:
 
 * **`INVENTORY_API_KEY` must be READ-scoped, never WRITE-scoped.** This
   application has no legitimate reason to write stock, and a write-scoped
   key here would mean a compromise of this application is a compromise of
   inventory data too. Generate the key with `read` scope specifically, in
   the ioref-inventory admin.
-* Keep each runner repository-scoped: `ioref-web`'s runner to `ioref/ioref-web`
-  only, ioref-inventory's to `ioref/ioref-inventory` only. Do not register
-  one runner against both.
-* Do not use a personal account to run either runner.
-* Do not run either runner as root.
-* Do not give `deploy` unrestricted passwordless `sudo`.
 * Restrict `/etc/ioref-web/production.env` to root and the `deploy` group.
-* Deploy immutable `sha-*` artifacts rather than building source on the
-  production server.
-* Do not expose SSH or another inbound service merely for GitHub Actions.
 
 ---
 
 # References
 
-* ioref-inventory's `DEPLOYMENT.md`: the pattern this document mirrors, with
-  the reasoning behind the shared pieces (the Quadlet approach, the runner
-  proxy setup, why the deploy workflow skips checkout and GHCR login).
+* ioref-inventory's `DEPLOYMENT.md`: the pattern this document mirrors, the
+  reasoning behind the shared pieces, and the full Apache vhost this app's
+  apex block lives inside.
 * GitHub: Adding self-hosted runners
   https://docs.github.com/actions/hosting-your-own-runners/adding-self-hosted-runners
 * GitHub: Configuring a self-hosted runner as a service
