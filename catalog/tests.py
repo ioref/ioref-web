@@ -266,8 +266,58 @@ class ViewTests(SimpleTestCase):
         bad = [p.url for p in self.catalogue.parts if self.client.get(p.url).status_code != 200]
         self.assertEqual(bad, [])
 
-    def test_unknown_part_404s(self):
+    @patch("catalog.views.get_part", return_value=None)
+    def test_unknown_part_404s(self, mock_get):
         self.assertEqual(self.client.get("/parts/nonsense/").status_code, 404)
+
+    @patch("catalog.views.get_part")
+    def test_part_number_renders_its_group_guide_with_only_that_part(self, mock_get):
+        mock_get.return_value = {
+            "part_number": "0390",
+            "group": {"slug": "potentiometers"},
+            "description": "10k potentiometer",
+            "location": "A1",
+        }
+
+        response = self.client.get("/parts/0390")
+        self.assertRedirects(
+            response, "/parts/0390/", status_code=301, fetch_redirect_response=False
+        )
+
+        response = self.client.get("/parts/0390/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Potentiometer")
+        self.assertContains(response, "0390")
+        self.assertContains(response, "A1")
+
+    @patch("catalog.views.get_part")
+    def test_part_number_without_guide_redirects_to_inventory(self, mock_get):
+        mock_get.return_value = {
+            "part_number": "0046",
+            "group": {"slug": "fasteners"},
+        }
+
+        response = self.client.get("/parts/0046/")
+
+        self.assertRedirects(
+            response, "/inventory/0046/", fetch_redirect_response=False
+        )
+
+    @patch("catalog.views.get_part")
+    def test_ungrouped_part_can_use_an_explicit_guide(self, mock_get):
+        mock_get.return_value = {
+            "part_number": "0574",
+            "group": None,
+            "description": "PIR sensor",
+            "location": "B2",
+        }
+
+        response = self.client.get("/parts/0574/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Passive Infrared Sensor")
+        self.assertContains(response, "0574")
 
     def test_part_sets(self):
         self.assertEqual(self.client.get("/part-sets/").status_code, 200)
@@ -359,7 +409,7 @@ class ResolveLegacyTests(SimpleTestCase):
     def test_a_part_number_in_a_guided_group_redirects_to_that_guide(self, mock_get):
         mock_get.return_value = {"part_number": "0001", "group": {"slug": "resistor"}}
         response = self.client.get("/0001/")
-        self.assertRedirects(response, "/parts/resistor/", fetch_redirect_response=False)
+        self.assertRedirects(response, "/parts/0001/", fetch_redirect_response=False)
 
     @patch("catalog.views.get_part")
     def test_a_part_number_with_no_guide_falls_back_to_inventory(self, mock_get):
@@ -370,10 +420,10 @@ class ResolveLegacyTests(SimpleTestCase):
         self.assertRedirects(response, "/inventory/0046/", fetch_redirect_response=False)
 
     @patch("catalog.views.get_part")
-    def test_an_ungrouped_part_falls_back_to_inventory(self, mock_get):
+    def test_an_ungrouped_part_with_an_explicit_guide_uses_it(self, mock_get):
         mock_get.return_value = {"part_number": "0574", "group": None}
         response = self.client.get("/0574/")
-        self.assertRedirects(response, "/inventory/0574/", fetch_redirect_response=False)
+        self.assertRedirects(response, "/parts/0574/", fetch_redirect_response=False)
 
     @patch("catalog.views.get_part")
     def test_unknown_token_404s(self, mock_get):

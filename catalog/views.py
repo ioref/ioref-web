@@ -114,35 +114,77 @@ def resolve_legacy(request, token):
     if guide is not None:
         return redirect(guide.url)
 
+    return _redirect_part_number(token)
+
+
+def _redirect_part_number(part_number):
+    """Redirect a bare part number to its canonical parts URL."""
+    catalogue = get_catalogue()
+
     try:
-        part = get_part(token)
+        part = get_part(part_number)
     except InventoryUnavailable:
         part = None
 
     if part is None:
-        raise Http404(f"No guide, group, or part named {token}")
+        raise Http404(f"No part numbered {part_number}")
 
-    group = part.get("group")
-    if group:
-        guide = catalogue.by_group.get(group["slug"])
-        if guide is not None:
-            return redirect(guide.url)
+    if _guide_for_inventory_part(part, catalogue) is not None:
+        return redirect("part", slug=part_number)
 
-    return redirect("inventory_detail", part_number=token)
+    return redirect("inventory_detail", part_number=part_number)
 
 
 def part(request, slug):
     catalogue = get_catalogue()
     page = catalogue.by_slug.get(slug)
+    if page is not None:
+        return _render_part(request, page, _variants(page))
+
+    try:
+        stock = get_part(slug)
+    except InventoryUnavailable:
+        stock = None
+
+    if stock is None:
+        raise Http404(f"No guide or part named {slug}")
+
+    page = _guide_for_inventory_part(stock, catalogue)
     if page is None:
-        raise Http404(f"No part {slug}")
+        return redirect("inventory_detail", part_number=slug)
+
+    return _render_part(request, page, [_variant(stock)])
+
+
+def _guide_for_inventory_part(stock, catalogue):
+    group = stock.get("group")
+    if group:
+        guide = catalogue.by_group.get(group["slug"])
+        if guide is not None:
+            return guide
+
+    number = stock["part_number"]
+    return next((page for page in catalogue.parts if number in page.part_numbers), None)
+
+
+def _variant(stock):
+    description = (stock.get("description") or "").strip()
+    return {
+        "number": stock["part_number"],
+        "label": description or stock.get("short_name", ""),
+        "note": "",
+        "stock": stock,
+    }
+
+
+def _render_part(request, page, variants):
 
     return render(
         request,
         "catalog/component_page.html",
         {
             "page": page,
-            "variants": _variants(page),
+            "variants": variants,
             "related_parts": page.related_parts,
         },
     )
@@ -159,17 +201,7 @@ def _variants(page):
     variants = []
     if page.group:
         for entry in list_by_group(page.group):
-            # The distinguishing detail is in the description; short_name is
-            # the same word for every part in the group ("potentiometer" x25).
-            description = (entry.get("description") or "").strip()
-            variants.append(
-                {
-                    "number": entry["part_number"],
-                    "label": description or entry.get("short_name", ""),
-                    "note": "",
-                    "stock": entry,
-                }
-            )
+            variants.append(_variant(entry))
 
     seen = {v["number"] for v in variants}
     inline = [p for p in page.stocked if p["number"] not in seen]
