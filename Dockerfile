@@ -10,7 +10,7 @@
 # version something it can raise a pull request against.
 FROM ghcr.io/astral-sh/uv:0.12.5 AS uv
 
-FROM python:3.13-slim AS base
+FROM python:3.14-slim AS base
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
