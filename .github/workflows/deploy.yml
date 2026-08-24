@@ -108,12 +108,13 @@ jobs:
             fi
             sleep 2
           done
-          echo "::error::Never became healthy. Healthcheck configuration and state:"
-          podman inspect "$CONTAINER" \
-            --format 'Config: {{json .Config.Healthcheck}} State: {{json .State.Healthcheck}}' || true
-          podman healthcheck run "$CONTAINER" || true
-          echo "Last 50 container log lines:"
-          podman logs --tail 50 "$CONTAINER" || true
+          DETAILS="$(podman inspect "$CONTAINER" \
+            --format 'Config: {{json .Config.Healthcheck}} State: {{json .State.Healthcheck}}' 2>&1 || true)"
+          CHECK="$(podman healthcheck run "$CONTAINER" 2>&1 || true)"
+          LOGS="$(podman logs --tail 50 "$CONTAINER" 2>&1 || true)"
+          echo "::error::Never became healthy. ${DETAILS}"
+          echo "::error::Healthcheck output: ${CHECK:-none}"
+          echo "::error::Container logs: ${LOGS:-none}"
           exit 1
 
       - name: Roll back
