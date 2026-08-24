@@ -290,18 +290,47 @@ class ViewTests(SimpleTestCase):
         self.assertContains(response, "Potentiometer")
         self.assertContains(response, "0390")
         self.assertContains(response, "A1")
+        self.assertNotContains(response, "Full stock history →")
+
+    @patch("stock.client.list_by_group")
+    def test_group_stock_table_links_each_variant_to_its_guide_view(self, mock_list):
+        mock_list.return_value = [
+            {
+                "part_number": "0368",
+                "group": {"slug": "accelerometers"},
+                "short_name": "ADXL335 accelerometer",
+                "location": "A1",
+            },
+            {
+                "part_number": "1368",
+                "group": {"slug": "accelerometers"},
+                "short_name": "Another accelerometer",
+                "location": "A2",
+            },
+        ]
+
+        response = self.client.get("/parts/accelerometers/")
+
+        self.assertContains(response, 'href="/parts/0368/"')
+        self.assertNotContains(response, 'href="/inventory/0368/"')
 
     @patch("catalog.views.get_part")
-    def test_part_number_without_guide_redirects_to_inventory(self, mock_get):
+    def test_part_number_without_guide_renders_stock_only_page(self, mock_get):
         mock_get.return_value = {
             "part_number": "0046",
             "group": {"slug": "fasteners"},
+            "short_name": "M3 bolt",
+            "location": "A4",
         }
 
         response = self.client.get("/parts/0046/")
 
-        self.assertRedirects(
-            response, "/inventory/0046/", fetch_redirect_response=False
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "M3 bolt")
+        self.assertContains(response, "0046")
+        self.assertContains(response, "A4")
+        self.assertContains(
+            response, 'href="https://inventory.ioref.org/parts/0046/"'
         )
 
     @patch("catalog.views.get_part")
@@ -358,7 +387,9 @@ class CategoryViewTests(SimpleTestCase):
     def test_unguided_group_links_to_inventory(self, mock_list, _):
         mock_list.return_value = [{"slug": "fasteners", "name": "Fasteners", "part_count": 190}]
         response = self.client.get("/category/power/")
-        self.assertContains(response, "/inventory/?group=fasteners")
+        self.assertContains(
+            response, "https://inventory.ioref.org/?group=fasteners"
+        )
         self.assertContains(response, "no guide yet")
 
     def test_empty_category_is_not_an_outage(self, mock_list, _):
@@ -369,8 +400,7 @@ class CategoryViewTests(SimpleTestCase):
 
     def test_outage_is_503_not_an_empty_category(self, mock_list, _):
         """An unreachable inventory must not read the same as a category with
-        nothing in it -- the /inventory/ browse view draws exactly this line
-        already; this page has to draw it too."""
+        nothing in it."""
         mock_list.side_effect = InventoryUnavailable("refused")
         response = self.client.get("/category/power/")
         self.assertEqual(response.status_code, 503)
@@ -426,12 +456,10 @@ class ResolveLegacyTests(SimpleTestCase):
         self.assertRedirects(response, "/parts/0001/", fetch_redirect_response=False)
 
     @patch("catalog.views.get_part")
-    def test_a_part_number_with_no_guide_falls_back_to_inventory(self, mock_get):
-        """The same "just show the inventory" fallback /inventory/ itself
-        uses when a part has stock but no write-up."""
+    def test_a_part_number_with_no_guide_uses_the_canonical_parts_url(self, mock_get):
         mock_get.return_value = {"part_number": "0046", "group": {"slug": "fasteners"}}
         response = self.client.get("/0046/")
-        self.assertRedirects(response, "/inventory/0046/", fetch_redirect_response=False)
+        self.assertRedirects(response, "/parts/0046/", fetch_redirect_response=False)
 
     @patch("catalog.views.get_part")
     def test_an_ungrouped_part_with_an_explicit_guide_uses_it(self, mock_get):

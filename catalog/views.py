@@ -7,6 +7,8 @@ below -- the site's shape does not depend on inventory being reachable at
 startup, only that one page does.
 """
 
+from types import SimpleNamespace
+
 from django.http import Http404
 from django.shortcuts import redirect, render
 
@@ -46,8 +48,7 @@ def category(request, category_slug):
     Not built from content/: a group with no guide still belongs here, so a
     purchasing question ("what's under Power") is answerable without anyone
     having written a word about half of it. Guided groups link to their guide;
-    the rest link to /inventory/?group=<slug>, which already knows how to list
-    a group's stock.
+    the rest link to the corresponding filtered view in ioref-inventory.
     """
     categories = load_categories()
     page = next((c for c in categories if c.slug == category_slug), None)
@@ -77,7 +78,7 @@ def category(request, category_slug):
             "guide": catalogue.by_group.get(g["slug"]),
             "url": (catalogue.by_group[g["slug"]].url
                     if g["slug"] in catalogue.by_group
-                    else f"/inventory/?group={g['slug']}"),
+                    else f"https://inventory.ioref.org/?group={g['slug']}"),
         }
         for g in sorted(groups, key=lambda g: g["name"])
     ]
@@ -88,7 +89,7 @@ def category(request, category_slug):
             "url": (
                 catalogue.by_part_number[part["part_number"]].url
                 if part["part_number"] in catalogue.by_part_number
-                else f"/inventory/{part['part_number']}/"
+                else f"/parts/{part['part_number']}/"
             ),
         }
         for part in sorted(ungrouped_parts, key=lambda part: part["short_name"])
@@ -113,18 +114,10 @@ def resolve_legacy(request, token):
 
     1. `token` is a guide's own slug (a group name, "resistor") -- resolved
        locally, no inventory involved.
-    2. `token` is a part number inventory knows about, and that part's group
-       has a guide -- redirect to the guide, since it documents the whole
-       group this part belongs to.
-    3. `token` is a part number with no guide behind it (ungrouped, or a
-       group nobody has written up) -- redirect to its inventory page, the
-       same "just show the inventory" fallback /inventory/ itself uses for
-       stock with no guide.
-    4. None of the above: 404. Inventory being unreachable is folded into
-       this case rather than a 503 of its own -- the inventory detail page
-       one line down already renders the right outage message for a part
-       number, and a token that is not a part number was never going to
-       resolve regardless of whether inventory answers.
+    2. `token` is a part number inventory knows about -- redirect to its
+       canonical /parts/ URL. That page includes its guide when one exists
+       and otherwise renders the stock information on its own.
+    3. None of the above: 404.
     """
     catalogue = get_catalogue()
 
@@ -137,8 +130,6 @@ def resolve_legacy(request, token):
 
 def _redirect_part_number(part_number):
     """Redirect a bare part number to its canonical parts URL."""
-    catalogue = get_catalogue()
-
     try:
         part = get_part(part_number)
     except InventoryUnavailable:
@@ -147,10 +138,7 @@ def _redirect_part_number(part_number):
     if part is None:
         raise Http404(f"No part numbered {part_number}")
 
-    if _guide_for_inventory_part(part, catalogue) is not None:
-        return redirect("part", slug=part_number)
-
-    return redirect("inventory_detail", part_number=part_number)
+    return redirect("part", slug=part_number)
 
 
 def part(request, slug):
@@ -169,9 +157,22 @@ def part(request, slug):
 
     page = _guide_for_inventory_part(stock, catalogue)
     if page is None:
-        return redirect("inventory_detail", part_number=slug)
+        page = _stock_only_page(stock)
 
     return _render_part(request, page, [_variant(stock)])
+
+
+def _stock_only_page(stock):
+    """Supply the page shape used by the guide template without guide copy."""
+    return SimpleNamespace(
+        title=stock.get("short_name") or stock["part_number"],
+        description="",
+        signal_type="",
+        part_sets=[],
+        sections=[],
+        image=None,
+        related_parts=[],
+    )
 
 
 def _guide_for_inventory_part(stock, catalogue):

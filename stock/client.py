@@ -213,13 +213,12 @@ def list_groups_by_category(category_slug: str) -> list[dict]:
     """Every group inventory files under a category, guided or not.
 
     This is what the /c/<slug>/ page is built from. A group with no guide in
-    content/ still appears, linking to /inventory/?group=<slug> instead of a
-    guide page -- category is inventory's fact, having a guide is ours, and
-    the two lists are not the same list.
+    content/ still appears, linking to its filtered view in ioref-inventory
+    instead of a guide page. Category is inventory's fact, having a guide is
+    ours, and the two lists are not the same list.
 
-    Raises InventoryUnavailable rather than returning []: this is a browse
-    view in the same sense /inventory/ is, and rendering an outage as "this
-    category is empty" would be worse than an error page.
+    Raises InventoryUnavailable rather than returning []. Rendering an outage
+    as "this category is empty" would be worse than an error page.
     """
     try:
         data = _get("/api/v1/groups/", {"category": category_slug, "limit": 200})

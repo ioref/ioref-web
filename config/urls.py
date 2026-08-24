@@ -2,8 +2,7 @@ from django.conf import settings
 from django.urls import include, path
 
 urlpatterns = [
-    # Native inventory browsing. maker-cards linked out to a separate app;
-    # this renders the same data in the site's own chrome.
+    # Compatibility only. Inventory browsing now belongs to ioref-inventory.
     path("inventory/", include("stock.urls")),
     # Must come last: catalog puts category slugs at the root of the path, so
     # its patterns would otherwise swallow everything above.

@@ -8,7 +8,6 @@ when inventory is down, and the browse view must not render an outage as an
 empty catalogue.
 """
 
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
@@ -132,8 +131,7 @@ class ListGroupsByCategoryTests(SimpleTestCase):
 
     @patch("stock.client._get")
     def test_outage_raises_rather_than_returning_empty(self, mock_get):
-        """This drives /c/<slug>/, a browse view in the same sense
-        /inventory/ is one: an outage must not render as an empty category."""
+        """An outage must not render as an empty category."""
         mock_get.side_effect = httpx.ConnectError("refused")
         with self.assertRaises(InventoryUnavailable):
             list_groups_by_category("power")
@@ -157,64 +155,28 @@ class ListUngroupedPartsByCategoryTests(SimpleTestCase):
 
 
 class InventoryViewTests(SimpleTestCase):
-    @patch("stock.views.list_parts")
-    def test_index_renders_parts(self, mock_list):
-        mock_list.return_value = {"count": 1, "results": [dict(PART)]}
+    def test_index_redirects_to_inventory_application(self):
         response = self.client.get("/inventory/")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "flexible protoboard")
-
-    @patch("stock.views.list_parts")
-    def test_index_reports_outage_as_503(self, mock_list):
-        mock_list.side_effect = InventoryUnavailable
-        response = self.client.get("/inventory/")
-        self.assertEqual(response.status_code, 503)
-        self.assertContains(response, "not responding", status_code=503)
-
-    @patch("stock.views.list_parts")
-    def test_empty_result_is_not_an_outage(self, mock_list):
-        mock_list.return_value = {"count": 0, "results": []}
-        response = self.client.get("/inventory/?q=nothing")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "No parts match")
-
-    @patch("stock.views.get_part")
-    def test_detail_404s_for_unstocked_part(self, mock_get):
-        mock_get.return_value = None
-        response = self.client.get("/inventory/9999/")
-        self.assertEqual(response.status_code, 404)
-
-    @patch("stock.views.get_part")
-    def test_detail_renders(self, mock_get):
-        mock_get.return_value = dict(PART)
-        response = self.client.get("/inventory/0020/")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Connector: Board Mount")
-
-    @patch("stock.views.get_catalogue")
-    @patch("stock.views.get_part")
-    def test_detail_links_the_guide_via_the_parts_own_group(self, mock_get, mock_catalogue):
-        """Regression: after guides moved from a hand-typed part_numbers list
-        to group:, a part with no inline listing anywhere (which is most of
-        them now) stopped finding its guide at all -- the lookup only ever
-        checked the inline list. The API embeds a part's group on every
-        response already, so resolving it here costs no extra request."""
-        mock_get.return_value = {**PART, "group": {"slug": "protoboards", "name": "Protoboards"}}
-        guide = SimpleNamespace(slug="protoboards", url="/parts/protoboards/", part_numbers=[])
-        mock_catalogue.return_value = SimpleNamespace(
-            parts=[guide], by_group={"protoboards": guide}
+        self.assertRedirects(
+            response,
+            "https://inventory.ioref.org/",
+            status_code=301,
+            fetch_redirect_response=False,
         )
-        response = self.client.get("/inventory/0020/")
-        self.assertContains(response, "/parts/protoboards/")
 
-    @patch("stock.views.get_catalogue")
-    @patch("stock.views.list_parts")
-    def test_index_links_guides_via_group_with_no_extra_requests(self, mock_list, mock_catalogue):
-        listed = {**PART, "group": {"slug": "protoboards", "name": "Protoboards"}}
-        mock_list.return_value = {"count": 1, "results": [listed]}
-        guide = SimpleNamespace(slug="protoboards", url="/parts/protoboards/", part_numbers=[])
-        mock_catalogue.return_value = SimpleNamespace(
-            parts=[guide], by_group={"protoboards": guide}
+    def test_index_preserves_filters(self):
+        response = self.client.get("/inventory/?group=fasteners&q=bolt")
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(
+            response["Location"],
+            "https://inventory.ioref.org/?group=fasteners&q=bolt",
         )
-        response = self.client.get("/inventory/")
-        self.assertContains(response, "/parts/protoboards/")
+
+    def test_detail_redirects_to_inventory_part(self):
+        response = self.client.get("/inventory/0020/")
+        self.assertRedirects(
+            response,
+            "https://inventory.ioref.org/parts/0020/",
+            status_code=301,
+            fetch_redirect_response=False,
+        )

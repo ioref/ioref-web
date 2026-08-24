@@ -82,7 +82,7 @@
                     {% for v in variants %}
                         <tr>
                             <td class="part_number">
-                                <a href="{% url 'inventory_detail' v.number %}">{{ v.number }}</a>
+                                <a href="{% url 'part' v.number %}">{{ v.number }}</a>
                             </td>
                             <td>{{ v.label }}{% if v.note %} <span class="variant_note">{{ v.note }}</span>{% endif %}</td>
                             {% if v.stock %}
