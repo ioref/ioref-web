@@ -20,6 +20,7 @@ from stock.client import (
     get_stock,
     list_categories,
     list_groups_by_category,
+    list_ungrouped_parts_by_category,
     list_parts,
 )
 
@@ -136,6 +137,23 @@ class ListGroupsByCategoryTests(SimpleTestCase):
         mock_get.side_effect = httpx.ConnectError("refused")
         with self.assertRaises(InventoryUnavailable):
             list_groups_by_category("power")
+
+
+class ListUngroupedPartsByCategoryTests(SimpleTestCase):
+    @patch("stock.client._get")
+    def test_requests_only_ungrouped_parts(self, mock_get):
+        mock_get.return_value = {"results": [PART]}
+        self.assertEqual(list_ungrouped_parts_by_category("input"), [PART])
+        mock_get.assert_called_once_with(
+            "/api/v1/parts/",
+            {"category": "input", "ungrouped": "true", "limit": 200},
+        )
+
+    @patch("stock.client._get")
+    def test_outage_raises(self, mock_get):
+        mock_get.side_effect = httpx.ConnectError("refused")
+        with self.assertRaises(InventoryUnavailable):
+            list_ungrouped_parts_by_category("input")
 
 
 class InventoryViewTests(SimpleTestCase):

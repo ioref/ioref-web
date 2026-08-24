@@ -229,6 +229,21 @@ def list_groups_by_category(category_slug: str) -> list[dict]:
     return data.get("results", [])
 
 
+def list_ungrouped_parts_by_category(category_slug: str) -> list[dict]:
+    """Parts filed directly under a category because they have no group."""
+    try:
+        data = _get(
+            "/api/v1/parts/",
+            {"category": category_slug, "ungrouped": "true", "limit": 200},
+        )
+    except httpx.HTTPError as exc:
+        log.warning(
+            "Ungrouped-part lookup failed for %s: %s", category_slug, exc
+        )
+        raise InventoryUnavailable from exc
+    return data.get("results", [])
+
+
 def get_part(part_number: str) -> dict | None:
     try:
         return _get(f"/api/v1/parts/{part_number}/")

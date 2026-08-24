@@ -334,36 +334,40 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(self.client.get("/part-sets/").status_code, 200)
 
 
+@patch("catalog.views.list_ungrouped_parts_by_category", return_value=[])
 @patch("catalog.views.list_groups_by_category")
 class CategoryViewTests(SimpleTestCase):
     """/category/<slug>/ is live: it never reads content/ to decide what
     belongs under a category, only to decide whether a group already has a
     guide."""
 
-    def test_unknown_category_404s_without_touching_inventory(self, mock_list):
+    def test_unknown_category_404s_without_touching_inventory(
+        self, mock_list, mock_list_ungrouped
+    ):
         response = self.client.get("/category/nachos/")
         self.assertEqual(response.status_code, 404)
         mock_list.assert_not_called()
+        mock_list_ungrouped.assert_not_called()
 
-    def test_guided_group_links_to_its_guide(self, mock_list):
+    def test_guided_group_links_to_its_guide(self, mock_list, _):
         mock_list.return_value = [{"slug": "resistor", "name": "Resistors", "part_count": 33}]
         response = self.client.get("/category/power/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "/parts/resistor/")
 
-    def test_unguided_group_links_to_inventory(self, mock_list):
+    def test_unguided_group_links_to_inventory(self, mock_list, _):
         mock_list.return_value = [{"slug": "fasteners", "name": "Fasteners", "part_count": 190}]
         response = self.client.get("/category/power/")
         self.assertContains(response, "/inventory/?group=fasteners")
         self.assertContains(response, "no guide yet")
 
-    def test_empty_category_is_not_an_outage(self, mock_list):
+    def test_empty_category_is_not_an_outage(self, mock_list, _):
         mock_list.return_value = []
         response = self.client.get("/category/power/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "No groups are filed")
+        self.assertContains(response, "No parts are filed")
 
-    def test_outage_is_503_not_an_empty_category(self, mock_list):
+    def test_outage_is_503_not_an_empty_category(self, mock_list, _):
         """An unreachable inventory must not read the same as a category with
         nothing in it -- the /inventory/ browse view draws exactly this line
         already; this page has to draw it too."""
@@ -371,6 +375,16 @@ class CategoryViewTests(SimpleTestCase):
         response = self.client.get("/category/power/")
         self.assertEqual(response.status_code, 503)
         self.assertContains(response, "unreachable", status_code=503)
+
+    def test_ungrouped_part_links_to_its_guide(
+        self, mock_list, mock_list_ungrouped
+    ):
+        mock_list.return_value = []
+        mock_list_ungrouped.return_value = [
+            {"part_number": "0286", "short_name": "Soil moisture sensor"}
+        ]
+        response = self.client.get("/category/input/")
+        self.assertContains(response, "/parts/soil-moisture-sensor/")
 
 
 class CategoryAliasTests(SimpleTestCase):

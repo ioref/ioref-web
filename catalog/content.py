@@ -179,6 +179,9 @@ class Catalogue:
         self.part_sets = part_sets
         self.by_slug = {p.slug: p for p in parts}
         self.by_group = {p.group: p for p in parts if p.group}
+        self.by_part_number = {
+            number: page for page in parts for number in page.part_numbers
+        }
         self.part_sets_by_slug = {s.slug: s for s in part_sets}
 
     def search(self, query):

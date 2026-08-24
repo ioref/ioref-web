@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% comment %}
-    Live: every group inventory files under this category, fetched at request
-    time. Not built from content/, so an undocumented group still appears --
-    it links to /inventory/ instead of a guide.
+    Live: every group and ungrouped part inventory files under this category,
+    fetched at request time. Not built from content/, so undocumented stock
+    still appears and links to /inventory/ instead of a guide.
 {% endcomment %}
 
 {% block content %}
@@ -14,11 +14,11 @@
 
         {% if unavailable %}
             <p class="stock_unknown">
-                Inventory is unreachable, so groups cannot be listed for this
+                Inventory is unreachable, so parts cannot be listed for this
                 category right now. Try again shortly.
             </p>
-        {% elif not groups %}
-            <p>No groups are filed under {{ page.title }} yet.</p>
+        {% elif not groups and not ungrouped_parts %}
+            <p>No parts are filed under {{ page.title }} yet.</p>
         {% else %}
             <div class="subcategory_tiles">
                 <div class="subcategory">
@@ -33,6 +33,19 @@
                                 <div class="part_name">{{ group.guide.title|default:group.name }}</div>
                                 {% if not group.guide %}
                                     <div class="variant_note">{{ group.part_count }} in stock, no guide yet</div>
+                                {% endif %}
+                            </a>
+                        {% endfor %}
+                        {% for part in ungrouped_parts %}
+                            <a class="part_tile noselect" href="{{ part.url }}">
+                                <div class="part_img_container">
+                                    {% if part.guide and part.guide.image %}
+                                        <img class="img_part_tile" src="{{ part.guide.image_url }}" alt="{{ part.guide.title }}">
+                                    {% endif %}
+                                </div>
+                                <div class="part_name">{{ part.guide.title|default:part.short_name }}</div>
+                                {% if not part.guide %}
+                                    <div class="variant_note">{{ part.part_number }}, no guide yet</div>
                                 {% endif %}
                             </a>
                         {% endfor %}

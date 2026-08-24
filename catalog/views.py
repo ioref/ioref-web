@@ -10,7 +10,12 @@ startup, only that one page does.
 from django.http import Http404
 from django.shortcuts import redirect, render
 
-from stock.client import InventoryUnavailable, get_part, list_groups_by_category
+from stock.client import (
+    InventoryUnavailable,
+    get_part,
+    list_groups_by_category,
+    list_ungrouped_parts_by_category,
+)
 
 from .content import get_catalogue, load_categories
 
@@ -58,6 +63,7 @@ def category(request, category_slug):
     catalogue = get_catalogue()
     try:
         groups = list_groups_by_category(category_slug)
+        ungrouped_parts = list_ungrouped_parts_by_category(category_slug)
     except InventoryUnavailable:
         context["unavailable"] = True
         return render(request, "catalog/category_page.html", context, status=503)
@@ -74,6 +80,18 @@ def category(request, category_slug):
                     else f"/inventory/?group={g['slug']}"),
         }
         for g in sorted(groups, key=lambda g: g["name"])
+    ]
+    context["ungrouped_parts"] = [
+        {
+            **part,
+            "guide": catalogue.by_part_number.get(part["part_number"]),
+            "url": (
+                catalogue.by_part_number[part["part_number"]].url
+                if part["part_number"] in catalogue.by_part_number
+                else f"/inventory/{part['part_number']}/"
+            ),
+        }
+        for part in sorted(ungrouped_parts, key=lambda part: part["short_name"])
     ]
     return render(request, "catalog/category_page.html", context)
 
