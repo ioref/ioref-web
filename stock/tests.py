@@ -19,8 +19,8 @@ from stock.client import (
     get_stock,
     list_categories,
     list_groups_by_category,
-    list_ungrouped_parts_by_category,
     list_parts,
+    list_ungrouped_parts_by_category,
 )
 
 PART = {

@@ -71,18 +71,24 @@ class ParsingTests(SimpleTestCase):
         An author who appends a section to the end of a file should not thereby
         move it to the end of the page.
         """
-        cat = self.load({
-            "p": "---\ntitle: P\ngroup: p\n---\n\n"
-                 "## Resources\n\nLinks.\n\n## About\n\nA thing.\n"
-        })
-        self.assertEqual([s.label for s in cat.by_slug["p"].sections], ["About", "Resources"])
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ngroup: p\n---\n\n"
+                "## Resources\n\nLinks.\n\n## About\n\nA thing.\n"
+            }
+        )
+        self.assertEqual(
+            [s.label for s in cat.by_slug["p"].sections], ["About", "Resources"]
+        )
 
     def test_empty_sections_are_omitted(self):
         """Live card 0390 has no About section; the jump menu must skip it."""
-        cat = self.load({
-            "p": "---\ntitle: P\ngroup: p\n---\n\n"
-                 "## About\n\n## What it is\n\nA variable resistor.\n"
-        })
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ngroup: p\n---\n\n"
+                "## About\n\n## What it is\n\nA variable resistor.\n"
+            }
+        )
         self.assertEqual([s.label for s in cat.by_slug["p"].sections], ["What it is"])
 
     def test_fenced_code_survives_rendering(self):
@@ -91,9 +97,9 @@ class ParsingTests(SimpleTestCase):
         This is why the content is markdown and why the sanitiser has to allow
         <pre> and <code>: rich text would have eaten them on first save.
         """
-        cat = self.load({
-            "p": f"---\ntitle: P\ngroup: p\n---\n\n## Getting started\n\n{FENCED}"
-        })
+        cat = self.load(
+            {"p": f"---\ntitle: P\ngroup: p\n---\n\n## Getting started\n\n{FENCED}"}
+        )
         html = str(cat.by_slug["p"].sections[0].body_html)
         self.assertIn("<code", html)
         self.assertIn("Serial.begin(9600)", html)
@@ -101,19 +107,21 @@ class ParsingTests(SimpleTestCase):
     def test_figure_markup_survives_rendering(self):
         """59 diagrams are inline <figure> HTML. Narrowing the allowed tags
         deletes them silently, and only on the pages that use them."""
-        cat = self.load({
-            "p": f"---\ntitle: P\ngroup: p\n---\n\n## How it works\n\n{FIGURE}\n"
-        })
+        cat = self.load(
+            {"p": f"---\ntitle: P\ngroup: p\n---\n\n## How it works\n\n{FIGURE}\n"}
+        )
         html = str(cat.by_slug["p"].sections[0].body_html)
         self.assertIn("<figure", html)
         self.assertIn("<figcaption", html)
         self.assertIn("/images/parts/pot.gif", html)
 
     def test_script_tags_are_stripped(self):
-        cat = self.load({
-            "p": "---\ntitle: P\ngroup: p\n---\n\n"
-                 "## About\n\n<script>alert(1)</script>Safe.\n"
-        })
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ngroup: p\n---\n\n"
+                "## About\n\n<script>alert(1)</script>Safe.\n"
+            }
+        )
         self.assertNotIn("<script", str(cat.by_slug["p"].sections[0].body_html))
 
     def test_url_is_flat_and_keyed_on_slug(self):
@@ -126,10 +134,12 @@ class ParsingTests(SimpleTestCase):
         bug check_groups exists to catch at the inventory end -- a second
         local file for the same group must not paper over it."""
         with self.assertRaises(ValueError) as caught:
-            self.load({
-                "a": "---\ntitle: A\ngroup: shared\n---\n\n## About\n\nx\n",
-                "b": "---\ntitle: B\ngroup: shared\n---\n\n## About\n\nx\n",
-            })
+            self.load(
+                {
+                    "a": "---\ntitle: A\ngroup: shared\n---\n\n## About\n\nx\n",
+                    "b": "---\ntitle: B\ngroup: shared\n---\n\n## About\n\nx\n",
+                }
+            )
         self.assertIn("shared", str(caught.exception))
 
     def test_a_page_needs_a_group_or_inline_parts(self):
@@ -141,17 +151,17 @@ class ParsingTests(SimpleTestCase):
 
     def test_inline_parts_stand_in_for_a_group(self):
         """A part inventory has not yet grouped still needs a page."""
-        cat = self.load({
-            "p": "---\ntitle: P\nparts:\n- number: '0574'\n---\n\n## About\n\nx\n"
-        })
+        cat = self.load(
+            {"p": "---\ntitle: P\nparts:\n- number: '0574'\n---\n\n## About\n\nx\n"}
+        )
         self.assertEqual(cat.by_slug["p"].part_numbers, ["0574"])
         self.assertEqual(cat.by_slug["p"].group, "")
 
     def test_part_numbers_stay_strings(self):
         """0386 is an identifier, not the integer 386."""
-        cat = self.load({
-            "p": "---\ntitle: P\nparts:\n- number: '0386'\n---\n\n## About\n\nx\n"
-        })
+        cat = self.load(
+            {"p": "---\ntitle: P\nparts:\n- number: '0386'\n---\n\n## About\n\nx\n"}
+        )
         self.assertEqual(cat.by_slug["p"].part_numbers, ["0386"])
 
     def test_unknown_section_heading_is_an_error_not_a_silent_drop(self):
@@ -163,18 +173,20 @@ class ParsingTests(SimpleTestCase):
 
     def test_dangling_related_slug_is_dropped_not_fatal(self):
         """A rename elsewhere should not 500 an unrelated page."""
-        cat = self.load({
-            "p": "---\ntitle: P\ngroup: p\nrelated:\n- gone\n---\n\n## About\n\nx\n"
-        })
+        cat = self.load(
+            {"p": "---\ntitle: P\ngroup: p\nrelated:\n- gone\n---\n\n## About\n\nx\n"}
+        )
         self.assertEqual(cat.by_slug["p"].related_parts, [])
 
     def test_deeper_headings_do_not_split_the_file(self):
         """### inside a section belongs to the author, not to the parser --
         this is how the breadboard/wire/pushbutton merges are structured."""
-        cat = self.load({
-            "p": "---\ntitle: P\ngroup: p\n---\n\n"
-                 "## About\n\nIntro.\n\n### A detail\n\nMore.\n"
-        })
+        cat = self.load(
+            {
+                "p": "---\ntitle: P\ngroup: p\n---\n\n"
+                "## About\n\nIntro.\n\n### A detail\n\nMore.\n"
+            }
+        )
         sections = cat.by_slug["p"].sections
         self.assertEqual(len(sections), 1)
         self.assertIn("A detail", sections[0].body)
@@ -184,19 +196,23 @@ class ParsingTests(SimpleTestCase):
         A generated repr that walks the cycle runs until the process is
         killed, which is how this was found: an unrelated error page tried
         to repr a view's locals."""
-        cat = self.load({
-            "a": "---\ntitle: A\ngroup: a\nrelated:\n- b\n---\n\n## About\n\nx\n",
-            "b": "---\ntitle: B\ngroup: b\nrelated:\n- a\n---\n\n## About\n\nx\n",
-        })
+        cat = self.load(
+            {
+                "a": "---\ntitle: A\ngroup: a\nrelated:\n- b\n---\n\n## About\n\nx\n",
+                "b": "---\ntitle: B\ngroup: b\nrelated:\n- a\n---\n\n## About\n\nx\n",
+            }
+        )
         self.assertIn("slug='a'", repr(cat.by_slug["a"]))
 
     def test_load_categories_is_the_fixed_five(self):
         cat_yml = "categories:\n- slug: input\n  title: Input\n- slug: power\n  title: Power\n"
-        self.load({"p": "---\ntitle: P\ngroup: p\n---\n\n## About\n\nx\n"}, categories=cat_yml)
+        self.load(
+            {"p": "---\ntitle: P\ngroup: p\n---\n\n## About\n\nx\n"}, categories=cat_yml
+        )
         with override_settings(CONTENT_DIR=self.tmp.name):
             cats = content.load_categories()
         self.assertEqual([c.slug for c in cats], ["input", "power"])
-        self.assertEqual(cats[0].url, "/c/input/")
+        self.assertEqual(cats[0].url, "/categories/input/")
 
 
 class RealContentTests(SimpleTestCase):
@@ -212,7 +228,9 @@ class RealContentTests(SimpleTestCase):
         self.assertEqual(len(self.catalogue.parts), expected)
 
     def test_every_part_has_a_group_or_inline_numbers(self):
-        orphans = [p.slug for p in self.catalogue.parts if not p.group and not p.stocked]
+        orphans = [
+            p.slug for p in self.catalogue.parts if not p.group and not p.stocked
+        ]
         self.assertEqual(orphans, [])
 
     def test_declared_groups_are_unique(self):
@@ -249,7 +267,9 @@ class RealContentTests(SimpleTestCase):
     def test_frontmatter_images_exist_on_disk(self):
         for part in self.catalogue.parts:
             if part.image:
-                target = Path(settings.WHITENOISE_ROOT) / "images" / "parts" / part.image
+                target = (
+                    Path(settings.WHITENOISE_ROOT) / "images" / "parts" / part.image
+                )
                 self.assertTrue(target.exists(), f"{part.slug}: {part.image}")
 
 
@@ -263,7 +283,11 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(self.client.get("/").status_code, 200)
 
     def test_every_guide_url_resolves(self):
-        bad = [p.url for p in self.catalogue.parts if self.client.get(p.url).status_code != 200]
+        bad = [
+            p.url
+            for p in self.catalogue.parts
+            if self.client.get(p.url).status_code != 200
+        ]
         self.assertEqual(bad, [])
 
     @patch("catalog.views.get_part", return_value=None)
@@ -329,9 +353,7 @@ class ViewTests(SimpleTestCase):
         self.assertContains(response, "M3 bolt")
         self.assertContains(response, "0046")
         self.assertContains(response, "A4")
-        self.assertContains(
-            response, 'href="https://inventory.ioref.org/parts/0046/"'
-        )
+        self.assertContains(response, 'href="https://inventory.ioref.org/parts/0046/"')
 
     @patch("catalog.views.get_part")
     def test_ungrouped_part_can_use_an_explicit_guide(self, mock_get):
@@ -366,35 +388,37 @@ class ViewTests(SimpleTestCase):
 @patch("catalog.views.list_ungrouped_parts_by_category", return_value=[])
 @patch("catalog.views.list_groups_by_category")
 class CategoryViewTests(SimpleTestCase):
-    """/category/<slug>/ is live: it never reads content/ to decide what
+    """/categories/<slug>/ is live: it never reads content/ to decide what
     belongs under a category, only to decide whether a group already has a
     guide."""
 
     def test_unknown_category_404s_without_touching_inventory(
         self, mock_list, mock_list_ungrouped
     ):
-        response = self.client.get("/category/nachos/")
+        response = self.client.get("/categories/nachos/")
         self.assertEqual(response.status_code, 404)
         mock_list.assert_not_called()
         mock_list_ungrouped.assert_not_called()
 
     def test_guided_group_links_to_its_guide(self, mock_list, _):
-        mock_list.return_value = [{"slug": "resistor", "name": "Resistors", "part_count": 33}]
-        response = self.client.get("/category/power/")
+        mock_list.return_value = [
+            {"slug": "resistor", "name": "Resistors", "part_count": 33}
+        ]
+        response = self.client.get("/categories/power/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "/parts/resistor/")
 
     def test_unguided_group_links_to_inventory(self, mock_list, _):
-        mock_list.return_value = [{"slug": "fasteners", "name": "Fasteners", "part_count": 190}]
-        response = self.client.get("/category/power/")
-        self.assertContains(
-            response, "https://inventory.ioref.org/?group=fasteners"
-        )
+        mock_list.return_value = [
+            {"slug": "fasteners", "name": "Fasteners", "part_count": 190}
+        ]
+        response = self.client.get("/categories/power/")
+        self.assertContains(response, "https://inventory.ioref.org/?group=fasteners")
         self.assertContains(response, "no guide yet")
 
     def test_empty_category_is_not_an_outage(self, mock_list, _):
         mock_list.return_value = []
-        response = self.client.get("/category/power/")
+        response = self.client.get("/categories/power/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "No parts are filed")
 
@@ -402,18 +426,16 @@ class CategoryViewTests(SimpleTestCase):
         """An unreachable inventory must not read the same as a category with
         nothing in it."""
         mock_list.side_effect = InventoryUnavailable("refused")
-        response = self.client.get("/category/power/")
+        response = self.client.get("/categories/power/")
         self.assertEqual(response.status_code, 503)
         self.assertContains(response, "unreachable", status_code=503)
 
-    def test_ungrouped_part_links_to_its_guide(
-        self, mock_list, mock_list_ungrouped
-    ):
+    def test_ungrouped_part_links_to_its_guide(self, mock_list, mock_list_ungrouped):
         mock_list.return_value = []
         mock_list_ungrouped.return_value = [
             {"part_number": "0286", "short_name": "Soil moisture sensor"}
         ]
-        response = self.client.get("/category/input/")
+        response = self.client.get("/categories/input/")
         self.assertContains(response, "/parts/soil-moisture-sensor/")
 
 
@@ -424,7 +446,10 @@ class CategoryAliasTests(SimpleTestCase):
     def test_redirects_to_the_canonical_path(self):
         response = self.client.get("/c/power/")
         self.assertRedirects(
-            response, "/category/power/", status_code=301, fetch_redirect_response=False
+            response,
+            "/categories/power/",
+            status_code=301,
+            fetch_redirect_response=False,
         )
 
     def test_does_not_validate_the_slug_itself(self):
@@ -447,7 +472,9 @@ class ResolveLegacyTests(SimpleTestCase):
         with patch("catalog.views.get_part") as mock_get:
             response = self.client.get("/resistor/")
             mock_get.assert_not_called()
-        self.assertRedirects(response, "/parts/resistor/", fetch_redirect_response=False)
+        self.assertRedirects(
+            response, "/parts/resistor/", fetch_redirect_response=False
+        )
 
     @patch("catalog.views.get_part")
     def test_a_part_number_in_a_guided_group_redirects_to_that_guide(self, mock_get):
@@ -476,7 +503,7 @@ class ResolveLegacyTests(SimpleTestCase):
     def test_outage_on_an_unrecognised_token_is_404_not_503(self, mock_get):
         """A token that is not a local guide slug was never going to resolve
         without inventory, so there is nothing an outage-specific page would
-        add -- unlike /category/<slug>/, which has real content to withhold."""
+        add -- unlike /categories/<slug>/, which has real content to withhold."""
         mock_get.side_effect = InventoryUnavailable("refused")
         self.assertEqual(self.client.get("/totallybogus/").status_code, 404)
 
@@ -503,9 +530,17 @@ class CheckGroupsTests(SimpleTestCase):
         fake_catalogue = SimpleNamespace(
             parts=[SimpleNamespace(slug=g, group=g) for g in groups]
         )
-        with patch("catalog.management.commands.check_groups.get_catalogue", return_value=fake_catalogue), \
-             patch("stock.client.list_by_group", side_effect=lambda g: results_by_group.get(g, [])), \
-             patch("stock.client.list_parts", return_value={"results": [], "count": 0}):
+        with (
+            patch(
+                "catalog.management.commands.check_groups.get_catalogue",
+                return_value=fake_catalogue,
+            ),
+            patch(
+                "stock.client.list_by_group",
+                side_effect=lambda g: results_by_group.get(g, []),
+            ),
+            patch("stock.client.list_parts", return_value={"results": [], "count": 0}),
+        ):
             call_command("check_groups", stdout=out, stderr=out, **kwargs)
         return out.getvalue()
 
@@ -531,7 +566,9 @@ class CheckGroupsTests(SimpleTestCase):
     def test_an_outage_is_an_error_not_a_report_of_every_group_broken(self):
         """Reporting a down service as 'all your slugs are stale' would send
         someone editing front matter that is perfectly correct."""
-        with patch("stock.client.list_parts", side_effect=InventoryUnavailable("refused")):
+        with patch(
+            "stock.client.list_parts", side_effect=InventoryUnavailable("refused")
+        ):
             with self.assertRaises(CommandError) as caught:
                 call_command("check_groups", stdout=io.StringIO())
         self.assertIn("unreachable", str(caught.exception))
@@ -549,7 +586,9 @@ class CheckCategoriesTests(SimpleTestCase):
         return out.getvalue()
 
     def test_all_five_matching_is_a_clean_pass(self):
-        output = self.run_command({"input", "output", "power", "connector", "controller"})
+        output = self.run_command(
+            {"input", "output", "power", "connector", "controller"}
+        )
         self.assertIn("All hardcoded categories exist", output)
         self.assertNotIn("MISSING", output)
 
@@ -563,7 +602,9 @@ class CheckCategoriesTests(SimpleTestCase):
             self.run_command(set(), strict=True)
 
     def test_an_outage_is_an_error_not_five_missing_categories(self):
-        with patch("stock.client.list_categories", side_effect=InventoryUnavailable("refused")):
+        with patch(
+            "stock.client.list_categories", side_effect=InventoryUnavailable("refused")
+        ):
             with self.assertRaises(CommandError) as caught:
                 call_command("check_categories", stdout=io.StringIO())
         self.assertIn("unreachable", str(caught.exception))

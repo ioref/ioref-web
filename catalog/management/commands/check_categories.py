@@ -28,7 +28,9 @@ class Command(BaseCommand):
         try:
             live = list_categories()
         except InventoryUnavailable as exc:
-            raise CommandError(f"Inventory is unreachable, so nothing can be checked: {exc}")
+            raise CommandError(
+                f"Inventory is unreachable, so nothing can be checked: {exc}"
+            )
 
         live_slugs = {c["slug"] for c in live}
         local_slugs = {c.slug for c in load_categories()}
@@ -39,13 +41,19 @@ class Command(BaseCommand):
         for slug in sorted(local_slugs & live_slugs):
             self.stdout.write(f"  ok       {slug}")
         for slug in sorted(missing):
-            self.stdout.write(self.style.ERROR(f"  MISSING  {slug} (in categories.yml, not in inventory)"))
+            self.stdout.write(
+                self.style.ERROR(
+                    f"  MISSING  {slug} (in categories.yml, not in inventory)"
+                )
+            )
         for slug in sorted(extra):
             self.stdout.write(f"  unused   {slug} (in inventory, no home-page tile)")
 
         self.stdout.write("")
         if not missing:
-            self.stdout.write(self.style.SUCCESS("All hardcoded categories exist in inventory."))
+            self.stdout.write(
+                self.style.SUCCESS("All hardcoded categories exist in inventory.")
+            )
             if extra:
                 self.stdout.write(
                     f"{len(extra)} more exist in inventory with no tile here -- "
@@ -56,7 +64,8 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.WARNING(
                 f"{len(missing)} of {len(local_slugs)} hardcoded categories do not exist in "
-                "inventory. Groups filed under them will never show up in /c/<slug>/."
+                "inventory. Groups filed under them will never show up in "
+                "/categories/<slug>/."
             )
         )
         if options["strict"]:

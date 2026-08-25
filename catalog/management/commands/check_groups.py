@@ -35,7 +35,9 @@ class Command(BaseCommand):
         try:
             list_parts(limit=1)
         except InventoryUnavailable as exc:
-            raise CommandError(f"Inventory is unreachable, so nothing can be checked: {exc}")
+            raise CommandError(
+                f"Inventory is unreachable, so nothing can be checked: {exc}"
+            )
 
         pages = [p for p in get_catalogue().parts if p.group]
         if not pages:

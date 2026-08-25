@@ -4,7 +4,6 @@ from urllib.parse import quote
 
 from django.http import HttpResponsePermanentRedirect
 
-
 INVENTORY_URL = "https://inventory.ioref.org"
 
 

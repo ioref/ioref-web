@@ -12,7 +12,7 @@ value. See CLAUDE.md for how that came about.
 Category is deliberately absent from this module. It used to be local
 front matter; it is now a fact inventory holds about the group
 (`Group.category`), fetched live by catalog/views.py only where it is
-needed -- the /c/<slug>/ browse page. Parsing a guide file here never talks
+needed -- the /categories/<slug>/ browse page. Parsing a guide file here never talks
 to inventory, so the guides render even when it is down.
 """
 
@@ -28,7 +28,13 @@ from django.utils.safestring import mark_safe
 
 # Matches the old WAGTAILMARKDOWN configuration this replaced.
 ALLOWED_TAGS = set(nh3.ALLOWED_TAGS) | {
-    "figure", "figcaption", "img", "video", "source", "pre", "code",
+    "figure",
+    "figcaption",
+    "img",
+    "video",
+    "source",
+    "pre",
+    "code",
 }
 ALLOWED_ATTRIBUTES = {
     **nh3.ALLOWED_ATTRIBUTES,
@@ -204,7 +210,9 @@ class Catalogue:
             if needle in haystack:
                 # Title matches first: searching "potentiometer" should not bury
                 # the potentiometer under every page that mentions one.
-                hits.append((0 if needle in part.title.lower() else 1, part.title, part))
+                hits.append(
+                    (0 if needle in part.title.lower() else 1, part.title, part)
+                )
         return [p for _, _, p in sorted(hits, key=lambda h: (h[0], h[1]))]
 
 
@@ -216,8 +224,8 @@ class Category:
     They are the five slugs `main.css` colours by, hardcoded here on purpose:
     the home page must render even when inventory is unreachable, and the set
     of five essentially never changes. What varies -- which groups sit under
-    Power today -- is inventory's live data, fetched only when a /c/<slug>/
-    page is actually visited. See catalog/views.py:category.
+    Power today -- is inventory's live data, fetched only when a
+    /categories/<slug>/ page is actually visited. See catalog/views.py:category.
     """
 
     slug: str
@@ -225,7 +233,7 @@ class Category:
 
     @property
     def url(self):
-        return f"/c/{self.slug}/"
+        return f"/categories/{self.slug}/"
 
 
 _lock = threading.Lock()
@@ -286,9 +294,7 @@ def _parse_sections(body, path):
                 f"{path}: unknown section heading '{current_label}'. "
                 f"Expected one of: {', '.join(LABEL_TO_ANCHOR)}"
             )
-        sections.append(
-            Section(LABEL_TO_ANCHOR[current_label], current_label, text)
-        )
+        sections.append(Section(LABEL_TO_ANCHOR[current_label], current_label, text))
 
     for line in body.splitlines():
         # Only level two, and only at the start of a line. Deeper headings
@@ -371,7 +377,9 @@ def load():
     # worth dropping quietly rather than 500ing the page it appears on.
     for part in parts:
         part._related = [
-            by_slug[s] for s in part.related_slugs if s in by_slug and not by_slug[s].hidden
+            by_slug[s]
+            for s in part.related_slugs
+            if s in by_slug and not by_slug[s].hidden
         ]
         for section in part.sections:
             section.render()

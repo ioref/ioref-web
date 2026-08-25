@@ -2,7 +2,7 @@
 
 Guides live at /parts/<group-slug>/ regardless of category, because parsing
 one never talks to inventory (see content.py). Category only exists as a
-live, request-time concept, fetched by the /category/<slug>/ browse view
+live, request-time concept, fetched by the /categories/<slug>/ browse view
 below -- the site's shape does not depend on inventory being reachable at
 startup, only that one page does.
 """
@@ -76,9 +76,11 @@ def category(request, category_slug):
             "name": g["name"],
             "part_count": g.get("part_count", 0),
             "guide": catalogue.by_group.get(g["slug"]),
-            "url": (catalogue.by_group[g["slug"]].url
-                    if g["slug"] in catalogue.by_group
-                    else f"https://inventory.ioref.org/?group={g['slug']}"),
+            "url": (
+                catalogue.by_group[g["slug"]].url
+                if g["slug"] in catalogue.by_group
+                else f"https://inventory.ioref.org/?group={g['slug']}"
+            ),
         }
         for g in sorted(groups, key=lambda g: g["name"])
     ]
@@ -98,7 +100,7 @@ def category(request, category_slug):
 
 
 def category_alias(request, category_slug):
-    """/c/<slug>/ -> /category/<slug>/. A short alias, not a second page --
+    """/c/<slug>/ -> /categories/<slug>/. A short alias, not a second page --
     it never renders anything itself, so category_page.html has exactly one
     caller. Permanent redirect: the alias is a deliberate, stable shorthand,
     not a typo to leave open for search engines to index twice."""

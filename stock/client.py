@@ -194,7 +194,7 @@ def list_categories() -> list[dict]:
     """Every category a group can belong to: Input, Output, Power...
 
     Raises InventoryUnavailable rather than returning [], matching list_parts():
-    this drives the /c/<slug>/ browse page, and an empty list here would be
+    this drives the /categories/<slug>/ browse page, and an empty list here would be
     indistinguishable from "no categories exist" rather than "inventory is down".
 
     Not cached: this is a handful of rows, requested once per category-page
@@ -212,7 +212,7 @@ def list_categories() -> list[dict]:
 def list_groups_by_category(category_slug: str) -> list[dict]:
     """Every group inventory files under a category, guided or not.
 
-    This is what the /c/<slug>/ page is built from. A group with no guide in
+    This is what the /categories/<slug>/ page is built from. A group with no guide in
     content/ still appears, linking to its filtered view in ioref-inventory
     instead of a guide page. Category is inventory's fact, having a guide is
     ours, and the two lists are not the same list.
@@ -236,9 +236,7 @@ def list_ungrouped_parts_by_category(category_slug: str) -> list[dict]:
             {"category": category_slug, "ungrouped": "true", "limit": 200},
         )
     except httpx.HTTPError as exc:
-        log.warning(
-            "Ungrouped-part lookup failed for %s: %s", category_slug, exc
-        )
+        log.warning("Ungrouped-part lookup failed for %s: %s", category_slug, exc)
         raise InventoryUnavailable from exc
     return data.get("results", [])
 
