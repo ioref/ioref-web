@@ -42,7 +42,7 @@
         <div id="search_box_area">
             <form action="{% url 'search' %}" method="get">
                 <div class="input-group">
-                    <input id="q" name="q" type="text" class="form-control"
+                    <input id="q" name="query" type="text" class="form-control"
                            placeholder="Search" value="{{ search_query|default:'' }}"
                            autocomplete="off" aria-label="Search box">
                     <button class="input-group-text" id="search_box_icon" type="submit"
